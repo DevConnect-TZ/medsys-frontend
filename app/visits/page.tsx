@@ -54,7 +54,7 @@ export default function VisitsPage() {
   const fetchVisits = async () => {
     try {
       setLoading(true);
-      const response: any = await apiClient.get('/visits');
+      const response = await apiClient.get<{ data?: Visit[] }>('/visits');
       setVisits(response.data || []);
       setError('');
     } catch (err) {
@@ -68,8 +68,8 @@ export default function VisitsPage() {
   const handleUpdateStatus = async (id: number, status: string) => {
     try {
       await apiClient.put(`/visits/${id}`, { status });
-      setVisits(visits.map(v => v.id === id ? { ...v, status: status as any } : v));
-    } catch (err) {
+      setVisits(visits.map((visit) => (visit.id === id ? { ...visit, status: status as Visit['status'] } : visit)));
+    } catch {
       setError(`Failed to update visit status to ${status}`);
     }
   };
@@ -345,7 +345,7 @@ export default function VisitsPage() {
         <div className="mt-8">
           <Card>
             <CardHeader>
-              <CardTitle>Today's Schedule</CardTitle>
+              <CardTitle>Today&apos;s Schedule</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Alert } from '@/components/Alert';
@@ -16,11 +16,6 @@ function AcceptInvitationContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [invitationData, setInvitationData] = useState<{
-    email: string;
-    role: string;
-  } | null>(null);
-
   const [formData, setFormData] = useState({
     name: '',
     password: '',
@@ -62,11 +57,8 @@ function AcceptInvitationContent() {
       setTimeout(() => {
         router.push('/login');
       }, 2000);
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          'Failed to complete registration. The invitation link may have expired.'
-      );
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to complete registration. The invitation link may have expired.'));
     } finally {
       setLoading(false);
     }

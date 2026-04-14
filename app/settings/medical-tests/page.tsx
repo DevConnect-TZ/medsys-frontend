@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -48,11 +48,11 @@ export default function MedicalTestsPage() {
   const fetchTests = async () => {
     try {
       setLoading(true);
-      const res: any = await apiClient.getMedicalTests({ active_only: false, per_page: 100 });
+      const res = await apiClient.getMedicalTests<MedicalTest>({ active_only: false, per_page: 100 });
       setTests(res.data || []);
       setError('');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load medical tests');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to load medical tests'));
     } finally {
       setLoading(false);
     }
@@ -95,8 +95,8 @@ export default function MedicalTestsPage() {
       }
       resetForm();
       fetchTests();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to save medical test');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to save medical test'));
     }
   };
 
@@ -105,8 +105,8 @@ export default function MedicalTestsPage() {
     try {
       await apiClient.deleteMedicalTest(id);
       fetchTests();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to deactivate');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to deactivate'));
     }
   };
 

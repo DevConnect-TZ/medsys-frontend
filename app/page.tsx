@@ -106,7 +106,7 @@ export default function Home() {
           </h1>
 
           <p className="text-lg sm:text-xl text-slate-800 sm:text-slate-700 mb-10 max-w-2xl sm:mx-0 leading-relaxed font-medium">
-            AFYA Medical Center's complete digital ecosystem for managing patients, appointments, medical records, and billing with uncompromising efficiency.
+            AFYA Medical Center&apos;s complete digital ecosystem for managing patients, appointments, medical records, and billing with uncompromising efficiency.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center sm:justify-start items-center">
@@ -131,7 +131,7 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {features.map((feature, idx) => {
+            {features.map((feature) => {
               const Icon = feature.icon;
               return (
                 <div

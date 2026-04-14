@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
@@ -51,6 +51,25 @@ export default function AppointmentsPage() {
   const isReceptionist = role === 'receptionist';
   const canCreate = isAdmin || isReceptionist;
 
+  const fetchAppointments = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params: Record<string, string | number | boolean> = { page };
+      if (viewMode === 'my_queue') {
+        params.my_queue = true;
+      }
+      const response = await apiClient.getAppointments<Appointment>(page, params);
+      setAppointments(response.data || []);
+      setTotalPages(response.meta?.last_page || 1);
+      setError('');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to load appointments'));
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, viewMode]);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -58,33 +77,14 @@ export default function AppointmentsPage() {
       return;
     }
     fetchAppointments();
-  }, [page, viewMode, router]);
-
-  const fetchAppointments = async () => {
-    try {
-      setLoading(true);
-      const params: any = { page };
-      if (viewMode === 'my_queue') {
-        params.my_queue = true;
-      }
-      const response: any = await apiClient.getAppointments(page, params);
-      setAppointments(response.data || []);
-      setTotalPages(response.meta?.last_page || 1);
-      setError('');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load appointments');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchAppointments, router]);
 
   const handleCancel = async (id: number) => {
     if (!confirm('Are you sure you want to cancel this appointment?')) return;
     try {
       await apiClient.cancelAppointment(id);
       setAppointments(appointments.map((a) => (a.id === id ? { ...a, status: 'cancelled', workflow_status: 'cancelled' } : a)));
-    } catch (err) {
+    } catch {
       setError('Failed to cancel appointment');
     }
   };
@@ -94,8 +94,8 @@ export default function AppointmentsPage() {
     try {
       await apiClient.markAppointmentPaid(id);
       setAppointments(appointments.map((a) => (a.id === id ? { ...a, workflow_status: 'paid' } : a)));
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to mark as paid');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to mark as paid'));
     }
   };
 
@@ -104,8 +104,8 @@ export default function AppointmentsPage() {
     try {
       await apiClient.dispenseAppointment(id);
       setAppointments(appointments.map((a) => (a.id === id ? { ...a, workflow_status: 'completed', status: 'completed' } : a)));
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to dispense');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to dispense'));
     }
   };
 

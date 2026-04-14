@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -59,32 +59,23 @@ export default function EditAppointmentPage() {
     notes: '',
   });
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    if (id) {
-      fetchData();
-    }
-  }, [id, router]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoadingData(true);
       
       // Fetch appointment details
-      const appointmentResponse: any = await apiClient.get(`/appointments/${id}`);
-      const appointment: Appointment = appointmentResponse.appointment || appointmentResponse.data;
+      const appointmentResponse = await apiClient.get<{ appointment?: Appointment; data?: Appointment }>(`/appointments/${id}`);
+      const appointment = appointmentResponse.appointment || appointmentResponse.data;
+      if (!appointment) {
+        throw new Error('Appointment data not found');
+      }
       
       // Fetch patients
-      const patientsResponse: any = await apiClient.get('/patients');
+      const patientsResponse = await apiClient.get<{ data?: Patient[] }>('/patients');
       setPatients(patientsResponse.data || []);
 
       // Fetch doctors
-      const doctorsResponse: any = await apiClient.get('/doctors');
+      const doctorsResponse = await apiClient.get<{ data?: Doctor[] }>('/doctors');
       setDoctors(doctorsResponse.data || []);
 
       // Set form data
@@ -106,7 +97,19 @@ export default function EditAppointmentPage() {
     } finally {
       setLoadingData(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    if (id) {
+      fetchData();
+    }
+  }, [fetchData, id, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -128,8 +131,8 @@ export default function EditAppointmentPage() {
         doctor_id: parseInt(formData.doctor_id),
       });
       router.push(`/appointments/${id}`);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update appointment');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update appointment'));
     } finally {
       setLoading(false);
     }

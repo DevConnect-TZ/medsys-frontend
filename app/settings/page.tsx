@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
+import { getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Alert } from '@/components/Alert';
-import { Settings, User, Lock, Bell, Shield, FlaskConical } from 'lucide-react';
+import { Settings, User, Lock, Bell, FlaskConical } from 'lucide-react';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -63,8 +64,8 @@ export default function SettingsPage() {
       // API call to update profile
       // await apiClient.updateProfile(profileData);
       setSuccess('Profile updated successfully');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update profile');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update profile'));
     } finally {
       setLoading(false);
     }
@@ -91,8 +92,8 @@ export default function SettingsPage() {
         new_password: '',
         confirm_password: '',
       });
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to change password');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to change password'));
     } finally {
       setLoading(false);
     }
@@ -107,8 +108,8 @@ export default function SettingsPage() {
       // API call to update notification settings
       // await apiClient.updateNotificationSettings(notificationSettings);
       setSuccess('Notification settings updated successfully');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update settings');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update settings'));
     } finally {
       setLoading(false);
     }

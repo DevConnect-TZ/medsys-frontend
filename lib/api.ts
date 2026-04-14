@@ -1,6 +1,51 @@
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance } from 'axios';
+import type { User } from '@/lib/store';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+
+type ApiParams = Record<string, string | number | boolean | null | undefined>;
+type ApiPayload = Record<string, unknown>;
+
+export interface ApiPaginationMeta {
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+}
+
+export interface ApiListResponse<T> {
+  data?: T[];
+  meta?: ApiPaginationMeta;
+}
+
+export type ApiResourceResponse<T, K extends string> = {
+  data?: T;
+} & Partial<Record<K, T>>;
+
+interface ApiErrorResponse {
+  message?: string;
+}
+
+export interface LoginResponse {
+  token?: string;
+  user?: User;
+}
+
+export interface CurrentUserResponse {
+  user: User;
+}
+
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError<ApiErrorResponse>(error)) {
+    return error.response?.data?.message || error.message || fallback;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
 
 class ApiClient {
   private api: AxiosInstance;
@@ -67,8 +112,8 @@ class ApiClient {
   }
 
   // Auth endpoints
-  async login(email: string, password: string) {
-    const response = await this.api.post('/auth/login', { email, password });
+  async login(email: string, password: string): Promise<LoginResponse> {
+    const response = await this.api.post<LoginResponse>('/auth/login', { email, password });
     if (response.data.token) {
       this.setToken(response.data.token);
     }
@@ -80,23 +125,23 @@ class ApiClient {
     this.clearToken();
   }
 
-  async getCurrentUser() {
-    const response = await this.api.get('/auth/me');
+  async getCurrentUser(): Promise<CurrentUserResponse> {
+    const response = await this.api.get<CurrentUserResponse>('/auth/me');
     return response.data;
   }
 
   // Generic CRUD methods
-  async get<T>(endpoint: string, params?: any): Promise<T> {
+  async get<T>(endpoint: string, params?: ApiParams): Promise<T> {
     const response = await this.api.get<T>(endpoint, { params });
     return response.data;
   }
 
-  async post<T>(endpoint: string, data?: any): Promise<T> {
+  async post<T>(endpoint: string, data?: unknown): Promise<T> {
     const response = await this.api.post<T>(endpoint, data);
     return response.data;
   }
 
-  async put<T>(endpoint: string, data?: any): Promise<T> {
+  async put<T>(endpoint: string, data?: unknown): Promise<T> {
     const response = await this.api.put<T>(endpoint, data);
     return response.data;
   }
@@ -107,19 +152,19 @@ class ApiClient {
   }
 
   // Patients
-  async getPatients(page = 1) {
-    return this.get('/patients', { page });
+  async getPatients<T>(page = 1): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/patients', { page });
   }
 
-  async getPatient(id: number) {
-    return this.get(`/patients/${id}`);
+  async getPatient<T>(id: number): Promise<ApiResourceResponse<T, 'patient'>> {
+    return this.get<ApiResourceResponse<T, 'patient'>>(`/patients/${id}`);
   }
 
-  async createPatient(data: any) {
+  async createPatient<T>(data: ApiPayload): Promise<T> {
     return this.post('/patients', data);
   }
 
-  async updatePatient(id: number, data: any) {
+  async updatePatient<T>(id: number, data: ApiPayload): Promise<T> {
     return this.put(`/patients/${id}`, data);
   }
 
@@ -128,23 +173,23 @@ class ApiClient {
   }
 
   // Appointments
-  async getAppointments(page = 1, params?: any) {
-    return this.get('/appointments', { page, ...params });
+  async getAppointments<T>(page = 1, params?: ApiParams): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/appointments', { page, ...params });
   }
 
-  async getMyAppointments(page = 1) {
-    return this.get('/appointments', { page, my_queue: true });
+  async getMyAppointments<T>(page = 1): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/appointments', { page, my_queue: true });
   }
 
-  async getAppointment(id: number) {
-    return this.get(`/appointments/${id}`);
+  async getAppointment<T>(id: number): Promise<ApiResourceResponse<T, 'appointment'>> {
+    return this.get<ApiResourceResponse<T, 'appointment'>>(`/appointments/${id}`);
   }
 
-  async createAppointment(data: any) {
+  async createAppointment<T>(data: ApiPayload): Promise<T> {
     return this.post('/appointments', data);
   }
 
-  async updateAppointment(id: number, data: any) {
+  async updateAppointment<T>(id: number, data: ApiPayload): Promise<T> {
     return this.put(`/appointments/${id}`, data);
   }
 
@@ -152,7 +197,7 @@ class ApiClient {
     return this.put(`/appointments/${id}/cancel`, {});
   }
 
-  async doctorReviewAppointment(id: number, data: any) {
+  async doctorReviewAppointment<T>(id: number, data: ApiPayload): Promise<T> {
     return this.post(`/appointments/${id}/doctor-review`, data);
   }
 
@@ -160,7 +205,7 @@ class ApiClient {
     return this.post(`/appointments/${id}/mark-paid`, {});
   }
 
-  async prescribeAppointment(id: number, data: any) {
+  async prescribeAppointment<T>(id: number, data: ApiPayload): Promise<T> {
     return this.post(`/appointments/${id}/prescribe`, data);
   }
 
@@ -169,76 +214,76 @@ class ApiClient {
   }
 
   // Visits
-  async getVisits(page = 1) {
-    return this.get('/visits', { page });
+  async getVisits<T>(page = 1): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/visits', { page });
   }
 
-  async getVisit(id: number) {
-    return this.get(`/visits/${id}`);
+  async getVisit<T>(id: number): Promise<ApiResourceResponse<T, 'visit'>> {
+    return this.get<ApiResourceResponse<T, 'visit'>>(`/visits/${id}`);
   }
 
-  async createVisit(data: any) {
+  async createVisit<T>(data: ApiPayload): Promise<T> {
     return this.post('/visits', data);
   }
 
-  async updateVisit(id: number, data: any) {
+  async updateVisit<T>(id: number, data: ApiPayload): Promise<T> {
     return this.put(`/visits/${id}`, data);
   }
 
   // Lab Orders
-  async getLabOrders(page = 1) {
-    return this.get('/lab-orders', { page });
+  async getLabOrders<T>(page = 1): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/lab-orders', { page });
   }
 
-  async createLabOrder(data: any) {
+  async createLabOrder<T>(data: ApiPayload): Promise<T> {
     return this.post('/lab-orders', data);
   }
 
   // Lab Results
-  async getLabResults(page = 1) {
-    return this.get('/lab-results', { page });
+  async getLabResults<T>(page = 1): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/lab-results', { page });
   }
 
-  async createLabResult(data: any) {
+  async createLabResult<T>(data: ApiPayload): Promise<T> {
     return this.post('/lab-results', data);
   }
 
   // Prescriptions
-  async getPrescriptions(page = 1) {
-    return this.get('/prescriptions', { page });
+  async getPrescriptions<T>(page = 1): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/prescriptions', { page });
   }
 
-  async createPrescription(data: any) {
+  async createPrescription<T>(data: ApiPayload): Promise<T> {
     return this.post('/prescriptions', data);
   }
 
   // Invoices
-  async getInvoices(page = 1) {
-    return this.get('/invoices', { page });
+  async getInvoices<T>(page = 1): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/invoices', { page });
   }
 
-  async getInvoice(id: number) {
-    return this.get(`/invoices/${id}`);
+  async getInvoice<T>(id: number): Promise<ApiResourceResponse<T, 'invoice'>> {
+    return this.get<ApiResourceResponse<T, 'invoice'>>(`/invoices/${id}`);
   }
 
-  async createInvoice(data: any) {
+  async createInvoice<T>(data: ApiPayload): Promise<T> {
     return this.post('/invoices', data);
   }
 
-  async payInvoice(id: number, paymentData: any) {
+  async payInvoice<T>(id: number, paymentData: ApiPayload): Promise<T> {
     return this.put(`/invoices/${id}/pay`, paymentData);
   }
 
   // Medical Tests
-  async getMedicalTests(params?: any) {
-    return this.get('/medical-tests', params);
+  async getMedicalTests<T>(params?: ApiParams): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/medical-tests', params);
   }
 
-  async createMedicalTest(data: any) {
+  async createMedicalTest<T>(data: ApiPayload): Promise<T> {
     return this.post('/medical-tests', data);
   }
 
-  async updateMedicalTest(id: number, data: any) {
+  async updateMedicalTest<T>(id: number, data: ApiPayload): Promise<T> {
     return this.put(`/medical-tests/${id}`, data);
   }
 
@@ -247,28 +292,28 @@ class ApiClient {
   }
 
   // Pharmacy Inventory
-  async getPharmacyInventory(params?: any) {
-    return this.get('/pharmacy/inventory', params);
+  async getPharmacyInventory<T>(params?: ApiParams): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/pharmacy/inventory', params);
   }
 
-  async createPharmacyInventory(data: any) {
+  async createPharmacyInventory<T>(data: ApiPayload): Promise<T> {
     return this.post('/pharmacy/inventory', data);
   }
 
-  async updatePharmacyInventory(id: number, data: any) {
+  async updatePharmacyInventory<T>(id: number, data: ApiPayload): Promise<T> {
     return this.put(`/pharmacy/inventory/${id}`, data);
   }
 
   // Users
-  async getUsers(page = 1) {
-    return this.get('/users', { page });
+  async getUsers<T>(page = 1): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/users', { page });
   }
 
-  async inviteUser(data: any) {
+  async inviteUser<T>(data: ApiPayload): Promise<T> {
     return this.post('/invitations', data);
   }
 
-  async acceptInvitation(data: any) {
+  async acceptInvitation<T>(data: ApiPayload): Promise<T> {
     return this.post('/users/accept-invitation', data);
   }
 }

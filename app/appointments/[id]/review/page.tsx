@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -24,6 +24,11 @@ interface MedicalTest {
   test_name: string;
   category?: string;
   cost: number;
+}
+
+interface AppointmentSummary {
+  patient_id: number;
+  patient_name?: string;
 }
 
 export default function DoctorReviewPage() {
@@ -52,11 +57,14 @@ export default function DoctorReviewPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [apptRes, testsRes]: any = await Promise.all([
-          apiClient.getAppointment(Number(id)),
-          apiClient.getMedicalTests(),
+        const [apptRes, testsRes] = await Promise.all([
+          apiClient.getAppointment<AppointmentSummary>(Number(id)),
+          apiClient.getMedicalTests<MedicalTest>(),
         ]);
         const appt = apptRes.appointment || apptRes.data;
+        if (!appt) {
+          throw new Error('Appointment data not found');
+        }
         setPatientName(appt.patient_name || `Patient #${appt.patient_id}`);
         setMedicalTests(testsRes.data || []);
       } catch {
@@ -123,8 +131,8 @@ export default function DoctorReviewPage() {
     try {
       await apiClient.doctorReviewAppointment(Number(id), payload);
       router.push('/appointments');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to submit review');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to submit review'));
       setLoading(false);
     }
   };

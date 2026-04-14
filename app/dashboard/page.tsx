@@ -3,14 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { apiClient } from '@/lib/api';
+import { apiClient, type ApiListResponse } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Alert } from '@/components/Alert';
-import { ProtectedElement } from '@/components/ProtectedElement';
 import { usePermission } from '@/hooks/usePermission';
-import { getRoleLabel, getRoleDescription, ROLE_PERMISSIONS } from '@/lib/roles';
-import { Users, Calendar, FileText, TrendingUp, Activity, Clock, Stethoscope, FlaskConical, Package, CreditCard } from 'lucide-react';
+import { ROLE_PERMISSIONS } from '@/lib/roles';
+import { Users, Calendar, TrendingUp, Activity, Clock, FlaskConical, Package, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 
 interface DashboardStats {
@@ -22,6 +21,15 @@ interface DashboardStats {
   totalPrescriptions?: number;
   totalInventory?: number;
 }
+
+interface AppointmentSummary {
+  status: string;
+}
+
+const emptyListResponse = <T,>(withData = false): ApiListResponse<T> => ({
+  data: withData ? [] : undefined,
+  meta: { total: 0 },
+});
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -68,22 +76,22 @@ export default function DashboardPage() {
 
         // Everyone can see some data
         if (can('view_patients')) {
-          requests.push(apiClient.getPatients(1).catch(() => ({ meta: { total: 0 } })));
+          requests.push(apiClient.getPatients(1).catch(() => emptyListResponse()));
         }
         if (can('view_appointments')) {
-          requests.push(apiClient.getAppointments(1).catch(() => ({ meta: { total: 0 }, data: [] })));
+          requests.push(apiClient.getAppointments(1).catch(() => emptyListResponse<AppointmentSummary>(true)));
         }
         if (can('view_invoices')) {
-          requests.push(apiClient.getInvoices(1).catch(() => ({ meta: { total: 0 } })));
+          requests.push(apiClient.getInvoices(1).catch(() => emptyListResponse()));
         }
         if (can('view_labs')) {
-          requests.push(apiClient.getLabOrders(1).catch(() => ({ meta: { total: 0 } })));
+          requests.push(apiClient.getLabOrders(1).catch(() => emptyListResponse()));
         }
         if (can('view_prescriptions')) {
-          requests.push(apiClient.getPrescriptions(1).catch(() => ({ meta: { total: 0 } })));
+          requests.push(apiClient.getPrescriptions(1).catch(() => emptyListResponse()));
         }
 
-        const results: any[] = await Promise.all(requests);
+        const results = await Promise.all(requests);
         let resultsIndex = 0;
 
         const newStats: DashboardStats = {
@@ -97,9 +105,9 @@ export default function DashboardPage() {
           newStats.totalPatients = results[resultsIndex++]?.meta?.total || 0;
         }
         if (can('view_appointments')) {
-          const appts = results[resultsIndex++] || {};
+          const appts = (results[resultsIndex++] || emptyListResponse<AppointmentSummary>(true)) as ApiListResponse<AppointmentSummary>;
           newStats.totalAppointments = appts.meta?.total || 0;
-          newStats.pendingAppointments = appts.data?.filter((a: any) => a.status === 'scheduled').length || 0;
+          newStats.pendingAppointments = appts.data?.filter((appointment) => appointment.status === 'scheduled').length || 0;
         }
         if (can('view_invoices')) {
           newStats.totalInvoices = results[resultsIndex++]?.meta?.total || 0;
@@ -283,7 +291,7 @@ export default function DashboardPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
               Welcome back, {user?.name || 'User'}
             </h1>
-            <p className="text-slate-500 mt-1 sm:mt-2 text-base sm:text-lg">Here's what's happening at AFYA Medical Center today.</p>
+            <p className="text-slate-500 mt-1 sm:mt-2 text-base sm:text-lg">Here&apos;s what&apos;s happening at AFYA Medical Center today.</p>
           </div>
           {roleInfo && (
             <div className="inline-flex self-start md:self-auto items-center gap-2 bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm mt-2 md:mt-0">

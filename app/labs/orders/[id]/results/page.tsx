@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -10,6 +10,12 @@ import { Input } from '@/components/Input';
 import { Alert } from '@/components/Alert';
 import { ArrowLeft, FlaskConical } from 'lucide-react';
 import Link from 'next/link';
+
+interface LabOrderDetail {
+  patient_name?: string;
+  test_name?: string;
+  appointment_id?: number | null;
+}
 
 export default function LabResultPage() {
   const router = useRouter();
@@ -32,8 +38,11 @@ export default function LabResultPage() {
   useEffect(() => {
     const fetchOrder = async () => {
       try {
-        const res: any = await apiClient.get(`/labs/orders/${id}`);
+        const res = await apiClient.get<{ lab_order?: LabOrderDetail; data?: LabOrderDetail }>(`/labs/orders/${id}`);
         const order = res.lab_order || res.data;
+        if (!order) {
+          throw new Error('Lab order data not found');
+        }
         setPatientName(order.patient_name || '');
         setTestName(order.test_name || '');
         setAppointmentId(order.appointment_id || null);
@@ -62,8 +71,8 @@ export default function LabResultPage() {
       } else {
         router.push('/labs');
       }
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to submit result');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to submit result'));
       setLoading(false);
     }
   };

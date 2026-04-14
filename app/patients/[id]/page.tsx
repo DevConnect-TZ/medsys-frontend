@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 import { Layout } from '@/components/Layout';
@@ -40,6 +40,20 @@ export default function PatientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const fetchPatient = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.getPatient<Patient>(Number(patientId));
+      setPatient(response.patient || response.data || null);
+      setError('');
+    } catch (err) {
+      setError('Failed to load patient details');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [patientId]);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -50,21 +64,7 @@ export default function PatientDetailPage() {
     if (patientId) {
       fetchPatient();
     }
-  }, [patientId, router]);
-
-  const fetchPatient = async () => {
-    try {
-      setLoading(true);
-      const response: any = await apiClient.getPatient(Number(patientId));
-      setPatient(response.patient);
-      setError('');
-    } catch (err) {
-      setError('Failed to load patient details');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchPatient, patientId, router]);
 
   if (loading) {
     return (

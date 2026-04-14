@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -34,7 +34,6 @@ export default function EditPatientPage() {
   const params = useParams();
   const patientId = params?.id as string;
 
-  const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -54,23 +53,14 @@ export default function EditPatientPage() {
     medical_history: '',
   });
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    if (patientId) {
-      fetchPatient();
-    }
-  }, [patientId, router]);
-
-  const fetchPatient = async () => {
+  const fetchPatient = useCallback(async () => {
     try {
       setLoading(true);
-      const response: any = await apiClient.getPatient(Number(patientId));
-      const patient = response.patient;
+      const response = await apiClient.getPatient<Patient>(Number(patientId));
+      const patient = response.patient || response.data;
+      if (!patient) {
+        throw new Error('Patient data not found');
+      }
       
       // Format date for input field (YYYY-MM-DD)
       const dob = patient.date_of_birth ? new Date(patient.date_of_birth).toISOString().split('T')[0] : '';
@@ -97,7 +87,19 @@ export default function EditPatientPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [patientId]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    if (patientId) {
+      fetchPatient();
+    }
+  }, [fetchPatient, patientId, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -121,8 +123,8 @@ export default function EditPatientPage() {
       
       await apiClient.updatePatient(Number(patientId), dataToSubmit);
       router.push(`/patients/${patientId}`);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update patient');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update patient'));
     } finally {
       setSaving(false);
     }

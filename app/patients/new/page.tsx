@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -46,8 +46,8 @@ export default function NewPatientPage() {
     try {
       await apiClient.createPatient(formData);
       router.push('/patients');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create patient');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to create patient'));
     } finally {
       setLoading(false);
     }

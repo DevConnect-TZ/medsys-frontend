@@ -6,13 +6,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Menu, LogOut, Home, Users, Calendar, FileText, Settings, Stethoscope, FlaskConical, Package } from 'lucide-react';
 import { useState } from 'react';
-import clsx from 'clsx';
 import { usePermission } from '@/hooks/usePermission';
 
 export function Navbar() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const { can, isRole } = usePermission();
+  const { can } = usePermission();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 import { Layout } from '@/components/Layout';
@@ -31,20 +31,10 @@ export default function PatientsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    fetchPatients();
-  }, [page, router]);
-
-  const fetchPatients = async () => {
+  const fetchPatients = useCallback(async () => {
     try {
       setLoading(true);
-      const response: any = await apiClient.getPatients(page);
+      const response = await apiClient.getPatients<Patient>(page);
       setPatients(response.data || []);
       setTotalPages(response.meta?.last_page || 1);
       setError('');
@@ -54,7 +44,17 @@ export default function PatientsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    fetchPatients();
+  }, [fetchPatients, router]);
 
   const handleDelete = async (id: number): Promise<void> => {
     if (!confirm('Are you sure you want to delete this patient?')) return;
@@ -62,7 +62,7 @@ export default function PatientsPage() {
     try {
       await apiClient.deletePatient(id);
       setPatients(patients.filter((p) => p.id !== id));
-    } catch (err) {
+    } catch {
       setError('Failed to delete patient');
     }
   };

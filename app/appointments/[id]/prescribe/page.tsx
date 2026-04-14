@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -31,6 +31,22 @@ interface InventoryItem {
   unit_price: number;
 }
 
+interface LabResult {
+  id?: number;
+  test_name: string;
+  results?: string;
+}
+
+interface AppointmentLabOrder {
+  lab_result?: LabResult | null;
+}
+
+interface AppointmentSummary {
+  patient_id: number;
+  patient_name?: string;
+  lab_orders?: AppointmentLabOrder[];
+}
+
 export default function PrescribePage() {
   const router = useRouter();
   const params = useParams();
@@ -39,7 +55,7 @@ export default function PrescribePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [patientName, setPatientName] = useState('');
-  const [labResults, setLabResults] = useState<any[]>([]);
+  const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [medications, setMedications] = useState<Medication[]>([
     { name: '', dosage: '', frequency: '', duration: '', quantity: '', price: '', instructions: '' },
@@ -49,15 +65,18 @@ export default function PrescribePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [res, invRes]: any = await Promise.all([
-          apiClient.getAppointment(Number(id)),
-          apiClient.getPharmacyInventory({ per_page: 200 }),
+        const [res, invRes] = await Promise.all([
+          apiClient.getAppointment<AppointmentSummary>(Number(id)),
+          apiClient.getPharmacyInventory<InventoryItem>({ per_page: 200 }),
         ]);
         const appt = res.appointment || res.data;
+        if (!appt) {
+          throw new Error('Appointment data not found');
+        }
         setPatientName(appt.patient_name || `Patient #${appt.patient_id}`);
         const results = (appt.lab_orders || [])
-          .filter((lo: any) => lo.lab_result)
-          .map((lo: any) => lo.lab_result);
+          .filter((labOrder): labOrder is AppointmentLabOrder & { lab_result: LabResult } => Boolean(labOrder.lab_result))
+          .map((labOrder) => labOrder.lab_result);
         setLabResults(results);
         setInventory(invRes.data || []);
       } catch {
@@ -117,8 +136,8 @@ export default function PrescribePage() {
     try {
       await apiClient.prescribeAppointment(Number(id), payload);
       router.push('/appointments');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create prescription');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to create prescription'));
       setLoading(false);
     }
   };

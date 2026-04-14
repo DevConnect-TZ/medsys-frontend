@@ -3,14 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Alert } from '@/components/Alert';
 import { ProtectedPage } from '@/components/ProtectedElement';
-import { usePermission } from '@/hooks/usePermission';
 import { getRoleLabel } from '@/lib/roles';
 import { Users, Mail, Plus } from 'lucide-react';
 
@@ -34,7 +33,6 @@ const ROLES = [
 ];
 
 export default function UsersPage() {
-  const { isAdmin } = usePermission();
   const router = useRouter();
   const { user, token, setUser } = useAuthStore();
   const [users, setUsers] = useState<User[]>([]);
@@ -77,7 +75,7 @@ export default function UsersPage() {
     // Fetch users
     const fetchUsers = async () => {
       try {
-        const response: any = await apiClient.get('/users');
+        const response = await apiClient.get<{ data?: User[] }>('/users');
         setUsers(response.data || []);
       } catch (err) {
         setError('Failed to load users');
@@ -99,7 +97,7 @@ export default function UsersPage() {
 
     try {
       // Send invitation
-      const response: any = await apiClient.post('/invitations', {
+      await apiClient.post('/invitations', {
         email: formData.email,
         role: formData.role,
       });
@@ -109,10 +107,10 @@ export default function UsersPage() {
       setInvitationOpen(false);
 
       // Refresh users list
-      const updatedUsers: any = await apiClient.get('/users');
+      const updatedUsers = await apiClient.get<{ data?: User[] }>('/users');
       setUsers(updatedUsers.data || []);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to send invitation');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to send invitation'));
     } finally {
       setSubmitting(false);
     }

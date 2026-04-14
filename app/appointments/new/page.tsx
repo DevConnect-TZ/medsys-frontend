@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -43,6 +43,22 @@ export default function NewAppointmentPage() {
     notes: '',
   });
 
+  const fetchData = useCallback(async () => {
+    try {
+      setLoadingData(true);
+      const patientsResponse = await apiClient.get<{ data?: Patient[] }>('/patients');
+      setPatients(patientsResponse.data || []);
+
+      const doctorsResponse = await apiClient.get<{ data?: Doctor[] }>('/doctors');
+      setDoctors(doctorsResponse.data || []);
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      setError('Failed to load patients and doctors');
+    } finally {
+      setLoadingData(false);
+    }
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -51,25 +67,7 @@ export default function NewAppointmentPage() {
     }
 
     fetchData();
-  }, [router]);
-
-  const fetchData = async () => {
-    try {
-      setLoadingData(true);
-      // Fetch patients
-      const patientsResponse: any = await apiClient.get('/patients');
-      setPatients(patientsResponse.data || []);
-
-      // Fetch doctors
-      const doctorsResponse: any = await apiClient.get('/doctors');
-      setDoctors(doctorsResponse.data || []);
-    } catch (err) {
-      console.error('Failed to load data:', err);
-      setError('Failed to load patients and doctors');
-    } finally {
-      setLoadingData(false);
-    }
-  };
+  }, [fetchData, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -91,8 +89,8 @@ export default function NewAppointmentPage() {
         doctor_id: parseInt(formData.doctor_id),
       });
       router.push('/appointments');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create appointment');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to create appointment'));
     } finally {
       setLoading(false);
     }

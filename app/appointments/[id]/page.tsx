@@ -1,16 +1,58 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
-import { Input } from '@/components/Input';
 import { Alert } from '@/components/Alert';
 import { ArrowLeft, Calendar, User, Stethoscope, CreditCard, FlaskConical, Pill, CheckCircle, Plus, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
+
+interface VisitRecord {
+  id?: number;
+  chief_complaint?: string;
+  diagnosis?: string;
+  vital_signs?: Record<string, string | number | null>;
+  consultation_fee?: number | string;
+}
+
+interface LabOrderResult {
+  results?: string;
+}
+
+interface LabOrder {
+  id: number;
+  test_name: string;
+  status: string;
+  cost: number | string;
+  lab_result?: LabOrderResult | null;
+}
+
+interface Medication {
+  name: string;
+  dosage?: string;
+  frequency?: string;
+  quantity?: number | string;
+  price?: number | string;
+  unit_price?: number | string;
+}
+
+interface Prescription {
+  id: number;
+  status: string;
+  medications?: Medication[];
+}
+
+interface Invoice {
+  id: number;
+  invoice_number: string;
+  invoice_date: string;
+  total: number | string;
+  status: string;
+}
 
 interface Appointment {
   id: number;
@@ -26,10 +68,10 @@ interface Appointment {
   reason: string;
   notes?: string;
   created_at: string;
-  visit?: any;
-  lab_orders?: any[];
-  prescriptions?: any[];
-  invoices?: any[];
+  visit?: VisitRecord;
+  lab_orders?: LabOrder[];
+  prescriptions?: Prescription[];
+  invoices?: Invoice[];
 }
 
 const workflowSteps = [
@@ -65,20 +107,15 @@ export default function AppointmentDetailPage() {
   const role = user?.role || '';
   const isAdmin = role === 'admin';
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    if (id) fetchAppointment();
-  }, [id, router]);
-
-  const fetchAppointment = async () => {
+  const fetchAppointment = useCallback(async () => {
     try {
       setLoading(true);
-      const response: any = await apiClient.getAppointment(Number(id));
-      setAppointment(response.appointment || response.data);
+      const response = await apiClient.getAppointment<Appointment>(Number(id));
+      const appointment = response.appointment || response.data;
+      if (!appointment) {
+        throw new Error('Appointment data not found');
+      }
+      setAppointment(appointment);
       setError('');
     } catch (err) {
       setError('Failed to load appointment details');
@@ -86,7 +123,18 @@ export default function AppointmentDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+    if (id) {
+      fetchAppointment();
+    }
+  }, [fetchAppointment, id, router]);
 
   const handleMarkPaid = async () => {
     if (!appointment) return;
@@ -94,8 +142,8 @@ export default function AppointmentDetailPage() {
     try {
       await apiClient.markAppointmentPaid(appointment.id);
       fetchAppointment();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to mark as paid');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to mark as paid'));
     }
   };
 
@@ -105,8 +153,8 @@ export default function AppointmentDetailPage() {
     try {
       await apiClient.dispenseAppointment(appointment.id);
       fetchAppointment();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to dispense');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to dispense'));
     }
   };
 
@@ -123,7 +171,7 @@ export default function AppointmentDetailPage() {
       });
     }
 
-    (appointment.lab_orders || []).forEach((lo: any) => {
+    (appointment.lab_orders || []).forEach((lo) => {
       if (Number(lo.cost) > 0) {
         items.push({
           description: `Lab Test: ${lo.test_name}`,
@@ -134,8 +182,8 @@ export default function AppointmentDetailPage() {
       }
     });
 
-    (appointment.prescriptions || []).forEach((pr: any) => {
-      (pr.medications || []).forEach((med: any) => {
+    (appointment.prescriptions || []).forEach((pr) => {
+      (pr.medications || []).forEach((med) => {
         const price = Number(med.price || med.unit_price || 0);
         const qty = Number(med.quantity || 1);
         if (price > 0) {
@@ -188,8 +236,8 @@ export default function AppointmentDetailPage() {
       });
       setShowInvoiceModal(false);
       fetchAppointment();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create invoice');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to create invoice'));
     } finally {
       setInvoiceLoading(false);
     }
@@ -430,7 +478,7 @@ export default function AppointmentDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {appointment.lab_orders.map((lo: any) => (
+                {appointment.lab_orders.map((lo) => (
                   <div key={lo.id} className="border rounded-lg p-3">
                     <div className="flex justify-between">
                       <p className="font-medium">{lo.test_name}</p>
@@ -457,7 +505,7 @@ export default function AppointmentDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {appointment.invoices.map((inv: any) => (
+                {appointment.invoices.map((inv) => (
                   <div key={inv.id} className="border rounded-lg p-3 flex justify-between items-center">
                     <div>
                       <p className="font-medium">{inv.invoice_number}</p>
@@ -482,14 +530,14 @@ export default function AppointmentDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {appointment.prescriptions.map((pr: any) => (
+                {appointment.prescriptions.map((pr) => (
                   <div key={pr.id} className="border rounded-lg p-3">
                     <div className="flex justify-between">
                       <p className="font-medium">Prescription #{pr.id}</p>
                       <span className={`text-xs px-2 py-1 rounded-full capitalize ${pr.status === 'dispensed' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>{pr.status}</span>
                     </div>
                     <ul className="mt-2 text-sm list-disc list-inside">
-                      {(pr.medications || []).map((med: any, i: number) => (
+                      {(pr.medications || []).map((med, i: number) => (
                         <li key={i}>{med.name} — {med.dosage} ({med.frequency}) {med.price ? `— Tshs ${Number(med.price).toLocaleString()}` : ''}</li>
                       ))}
                     </ul>

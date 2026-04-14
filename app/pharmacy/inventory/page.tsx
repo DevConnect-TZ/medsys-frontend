@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -59,11 +59,11 @@ export default function PharmacyInventoryPage() {
   const fetchInventory = async () => {
     try {
       setLoading(true);
-      const res: any = await apiClient.getPharmacyInventory({ per_page: 100, hide_expired: false });
+      const res = await apiClient.getPharmacyInventory<InventoryItem>({ per_page: 100, hide_expired: false });
       setItems(res.data || []);
       setError('');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load inventory');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to load inventory'));
     } finally {
       setLoading(false);
     }
@@ -116,8 +116,8 @@ export default function PharmacyInventoryPage() {
       }
       resetForm();
       fetchInventory();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to save inventory item');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to save inventory item'));
     }
   };
 
@@ -126,8 +126,8 @@ export default function PharmacyInventoryPage() {
     try {
       await apiClient.delete(`/pharmacy/inventory/${id}`);
       fetchInventory();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to delete');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to delete'));
     }
   };
 

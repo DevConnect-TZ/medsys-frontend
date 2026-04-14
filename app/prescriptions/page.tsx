@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -48,7 +48,7 @@ export default function PrescriptionsPage() {
   const fetchPrescriptions = async () => {
     try {
       setLoading(true);
-      const response: any = await apiClient.get('/pharmacy/prescriptions');
+      const response = await apiClient.get<{ data?: Prescription[] }>('/pharmacy/prescriptions');
       setPrescriptions(response.data || []);
       setError('');
     } catch (err) {
@@ -265,8 +265,8 @@ export default function PrescriptionsPage() {
                                   try {
                                     await apiClient.put(`/pharmacy/prescriptions/${prescription.id}`, { status: 'dispensed' });
                                     setPrescriptions(prescriptions.map(p => p.id === prescription.id ? { ...p, status: 'dispensed' } : p));
-                                  } catch (err: any) {
-                                    setError(err.response?.data?.message || 'Failed to dispense');
+                                  } catch (err: unknown) {
+                                    setError(getErrorMessage(err, 'Failed to dispense'));
                                   } finally {
                                     setDispensingId(null);
                                   }

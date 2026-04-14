@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
-import { FlaskConical, Plus, Eye, CheckCircle, Clock, AlertCircle, ArrowLeft } from 'lucide-react';
+import { FlaskConical, CheckCircle, Clock, AlertCircle, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 interface LabOrder {
@@ -22,29 +22,26 @@ interface LabOrder {
 }
 
 export default function LabsPage() {
+  return (
+    <Suspense fallback={<Layout><main className="max-w-7xl mx-auto p-6"><p className="text-gray-600 text-center py-8">Loading...</p></main></Layout>}>
+      <LabsPageContent />
+    </Suspense>
+  );
+}
+
+function LabsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const appointmentId = searchParams.get('appointment_id');
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'orders' | 'results'>('orders');
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    fetchLabOrders();
-  }, [router, appointmentId]);
-
-  const fetchLabOrders = async () => {
+  const fetchLabOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const params: any = {};
+      const params: Record<string, string> = {};
       if (appointmentId) params.appointment_id = appointmentId;
-      const response: any = await apiClient.get('/labs/orders', params);
+      const response = await apiClient.get<{ data?: LabOrder[] }>('/labs/orders', params);
       setLabOrders(response.data || []);
       setError('');
     } catch (err) {
@@ -53,7 +50,16 @@ export default function LabsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [appointmentId]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+    fetchLabOrders();
+  }, [fetchLabOrders, router]);
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -74,10 +80,6 @@ export default function LabsPage() {
         {status.replace('_', ' ')}
       </span>
     );
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
   return (

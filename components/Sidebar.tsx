@@ -5,7 +5,6 @@ import { useAuthStore } from '@/lib/store';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Menu,
   LogOut,
   Home,
   Users,
@@ -28,26 +27,20 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
   const { can } = usePermission();
-  const [isExpanded, setIsExpanded] = useState(true);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-    const saved = localStorage.getItem('sidebarExpanded');
-    if (saved === 'false') {
-      setIsExpanded(false);
+  const [isExpanded, setIsExpanded] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true;
     }
 
+    return localStorage.getItem('sidebarExpanded') !== 'false';
+  });
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  useEffect(() => {
     const handleMobileToggle = () => setIsMobileOpen(prev => !prev);
     window.addEventListener('toggleMobileSidebar', handleMobileToggle);
     return () => window.removeEventListener('toggleMobileSidebar', handleMobileToggle);
   }, []);
-
-  // Automatically close mobile sidebar when navigating
-  useEffect(() => {
-    setIsMobileOpen(false);
-  }, [pathname]);
 
   const toggleSidebar = () => {
     const newState = !isExpanded;
@@ -61,6 +54,12 @@ export function Sidebar() {
   const handleLogout = async () => {
     logout();
     router.push('/login');
+  };
+
+  const handleNavClick = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsMobileOpen(false);
+    }
   };
 
   const allMenuItems = [
@@ -86,8 +85,6 @@ export function Sidebar() {
     }
     return pathname?.startsWith(href);
   };
-
-  if (!isMounted) return null;
 
   return (
     <>
@@ -146,6 +143,7 @@ export function Sidebar() {
               <Link
                 key={href}
                 href={href}
+                onClick={handleNavClick}
                 className={clsx(
                   'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group',
                   isActive(href)

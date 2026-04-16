@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient, getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
+import { usePermission } from '@/hooks/usePermission';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -46,10 +47,10 @@ export default function AppointmentsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [viewMode, setViewMode] = useState<'my_queue' | 'all'>('my_queue');
 
+  const { can } = usePermission();
   const role = user?.role || '';
-  const isAdmin = role === 'admin';
   const isReceptionist = role === 'receptionist';
-  const canCreate = isAdmin || isReceptionist;
+  const canCreate = can('create_appointments');
 
   const fetchAppointments = useCallback(async () => {
     try {
@@ -130,7 +131,7 @@ export default function AppointmentsPage() {
   const getActionButtons = (appt: Appointment) => {
     const buttons: React.ReactNode[] = [];
 
-    if (appt.workflow_status === 'scheduled' && (role === 'doctor' || isAdmin)) {
+    if (appt.workflow_status === 'scheduled' && role === 'doctor') {
       buttons.push(
         <Link key="review" href={`/appointments/${appt.id}/review`}>
           <Button variant="primary" size="sm">
@@ -141,7 +142,7 @@ export default function AppointmentsPage() {
       );
     }
 
-    if (appt.workflow_status === 'awaiting_payment' && (role === 'cashier' || isAdmin)) {
+    if (appt.workflow_status === 'awaiting_payment' && role === 'cashier') {
       buttons.push(
         <Button key="pay" variant="primary" size="sm" onClick={() => handleMarkPaid(appt.id)}>
           <CreditCard size={16} className="mr-1" />
@@ -150,7 +151,7 @@ export default function AppointmentsPage() {
       );
     }
 
-    if (appt.workflow_status === 'paid' && (role === 'lab_technician' || isAdmin)) {
+    if (appt.workflow_status === 'paid' && role === 'lab_technician') {
       buttons.push(
         <Link key="lab" href={`/labs?appointment_id=${appt.id}`}>
           <Button variant="primary" size="sm">
@@ -161,7 +162,7 @@ export default function AppointmentsPage() {
       );
     }
 
-    if (appt.workflow_status === 'lab_completed' && (role === 'doctor' || isAdmin)) {
+    if (appt.workflow_status === 'lab_completed' && role === 'doctor') {
       buttons.push(
         <Link key="prescribe" href={`/appointments/${appt.id}/prescribe`}>
           <Button variant="primary" size="sm">
@@ -172,7 +173,7 @@ export default function AppointmentsPage() {
       );
     }
 
-    if (appt.workflow_status === 'pharmacy_pending' && (role === 'pharmacist' || isAdmin)) {
+    if (appt.workflow_status === 'pharmacy_pending' && role === 'pharmacist') {
       buttons.push(
         <Button key="dispense" variant="primary" size="sm" onClick={() => handleDispense(appt.id)}>
           <Pill size={16} className="mr-1" />
@@ -204,7 +205,7 @@ export default function AppointmentsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {(isAdmin || isReceptionist) && (
+            {can('view_appointments') && (
               <>
                 <Button
                   variant={viewMode === 'my_queue' ? 'outline' : 'secondary'}
@@ -283,7 +284,7 @@ export default function AppointmentsPage() {
                           </Button>
                         </Link>
                         {getActionButtons(appt)}
-                        {(isAdmin || isReceptionist) && appt.workflow_status !== 'cancelled' && appt.workflow_status !== 'completed' && (
+                        {can('cancel_appointments') && appt.workflow_status !== 'cancelled' && appt.workflow_status !== 'completed' && (
                           <Button variant="secondary" size="sm" onClick={() => handleCancel(appt.id)}>
                             Cancel
                           </Button>

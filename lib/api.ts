@@ -152,8 +152,10 @@ class ApiClient {
   }
 
   // Patients
-  async getPatients<T>(page = 1): Promise<ApiListResponse<T>> {
-    return this.get<ApiListResponse<T>>('/patients', { page });
+  async getPatients<T>(page = 1, search = ''): Promise<ApiListResponse<T>> {
+    const params: ApiParams = { page };
+    if (search) params.search = search;
+    return this.get<ApiListResponse<T>>('/patients', params);
   }
 
   async getPatient<T>(id: number): Promise<ApiResourceResponse<T, 'patient'>> {
@@ -213,9 +215,26 @@ class ApiClient {
     return this.post(`/appointments/${id}/dispense`, {});
   }
 
+  // Admissions
+  async getAdmissions<T>(page = 1, params?: ApiParams): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/admissions', { page, ...params });
+  }
+
+  async createAdmission<T>(data: ApiPayload): Promise<{ success: boolean; message?: string; data?: T }> {
+    return this.post<{ success: boolean; message?: string; data?: T }>('/admissions', data);
+  }
+
+  async dischargeAdmission(id: number): Promise<{ success: boolean; message?: string }> {
+    return this.post('/admissions/' + id + '/discharge', {});
+  }
+
+  async completeReferral(id: number): Promise<{ success: boolean; message?: string }> {
+    return this.post('/admissions/' + id + '/complete-referral', {});
+  }
+
   // Visits
-  async getVisits<T>(page = 1): Promise<ApiListResponse<T>> {
-    return this.get<ApiListResponse<T>>('/visits', { page });
+  async getVisits<T>(page = 1, params?: ApiParams): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/visits', { page, ...params });
   }
 
   async getVisit<T>(id: number): Promise<ApiResourceResponse<T, 'visit'>> {
@@ -289,6 +308,27 @@ class ApiClient {
 
   async deleteMedicalTest(id: number) {
     return this.delete(`/medical-tests/${id}`);
+  }
+
+  // Doctor Schedules
+  async getDoctorSchedules<T>(params?: ApiParams): Promise<{ success: boolean; data?: T[] }> {
+    return this.get<{ success: boolean; data?: T[] }>('/doctor-schedules', params);
+  }
+
+  async createDoctorSchedule<T>(data: ApiPayload): Promise<{ success: boolean; message?: string; data?: T }> {
+    return this.post<{ success: boolean; message?: string; data?: T }>('/doctor-schedules', data);
+  }
+
+  async updateDoctorSchedule<T>(id: number, data: ApiPayload): Promise<{ success: boolean; message?: string; data?: T }> {
+    return this.put<{ success: boolean; message?: string; data?: T }>(`/doctor-schedules/${id}`, data);
+  }
+
+  async deleteDoctorSchedule(id: number) {
+    return this.delete(`/doctor-schedules/${id}`);
+  }
+
+  async checkDoctorAvailability(params: ApiParams): Promise<{ success: boolean; available: boolean; message: string; schedule?: { start_time: string; end_time: string; day_name: string } }> {
+    return this.get('/doctor-schedules/check-availability', params);
   }
 
   // Pharmacy Inventory

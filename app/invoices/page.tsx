@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePermission } from '@/hooks/usePermission';
 import { apiClient } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
@@ -24,6 +25,7 @@ interface Invoice {
 
 export default function InvoicesPage() {
   const router = useRouter();
+  const { can } = usePermission();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -97,10 +99,12 @@ export default function InvoicesPage() {
             <h1 className="text-3xl font-bold text-gray-900">Invoices</h1>
             <p className="text-gray-600 mt-2">Manage billing and invoices</p>
           </div>
-          <Button variant="primary" className="flex items-center gap-2">
-            <FileText size={20} />
-            Create Invoice
-          </Button>
+          {can('create_invoices') && (
+            <Button variant="primary" className="flex items-center gap-2">
+              <FileText size={20} />
+              Create Invoice
+            </Button>
+          )}
         </div>
 
         {/* Error Alert */}
@@ -241,7 +245,7 @@ export default function InvoicesPage() {
                             <Button variant="outline" size="sm">
                               View
                             </Button>
-                            {invoice.status === 'pending' && (
+                            {invoice.status === 'pending' && can('process_payments') && (
                               <Button variant="primary" size="sm">
                                 Mark Paid
                               </Button>

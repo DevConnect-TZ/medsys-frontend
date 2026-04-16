@@ -14,6 +14,7 @@ import {
   Stethoscope,
   FlaskConical,
   Package,
+  BedDouble,
   ChevronLeft,
   ChevronRight,
   X
@@ -67,6 +68,7 @@ export function Sidebar() {
     { label: 'Patients', href: '/patients', icon: Users, permission: 'view_patients' },
     { label: 'Appointments', href: '/appointments', icon: Calendar, permission: 'view_appointments' },
     { label: 'Visits', href: '/visits', icon: Stethoscope, permission: 'view_visits' },
+    { label: 'Admissions', href: '/admissions', icon: BedDouble, permission: 'manage_admissions' },
     { label: 'Labs', href: '/labs', icon: FlaskConical, permission: 'view_labs' },
     { label: 'Prescriptions', href: '/prescriptions', icon: Package, permission: 'view_prescriptions' },
     { label: 'Inventory', href: '/pharmacy/inventory', icon: Package, permission: 'view_inventory' },

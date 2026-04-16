@@ -14,6 +14,7 @@ import Link from 'next/link';
 interface Patient {
   id: number;
   patient_number: string;
+  patient_id: string;
   first_name: string;
   last_name: string;
   full_name: string;
@@ -29,9 +30,14 @@ export default function NewAppointmentPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [patients, setPatients] = useState<Patient[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Patient search
+  const [patientSearch, setPatientSearch] = useState('');
+  const [patientResults, setPatientResults] = useState<Patient[]>([]);
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
   const [formData, setFormData] = useState({
     patient_id: '',
@@ -43,17 +49,17 @@ export default function NewAppointmentPage() {
     notes: '',
   });
 
-  const fetchData = useCallback(async () => {
+  const [availability, setAvailability] = useState<{ available?: boolean; message?: string; schedule?: { start_time: string; end_time: string; day_name: string } }>({});
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+
+  const fetchDoctors = useCallback(async () => {
     try {
       setLoadingData(true);
-      const patientsResponse = await apiClient.get<{ data?: Patient[] }>('/patients');
-      setPatients(patientsResponse.data || []);
-
       const doctorsResponse = await apiClient.get<{ data?: Doctor[] }>('/doctors');
       setDoctors(doctorsResponse.data || []);
     } catch (err) {
       console.error('Failed to load data:', err);
-      setError('Failed to load patients and doctors');
+      setError('Failed to load doctors');
     } finally {
       setLoadingData(false);
     }
@@ -66,8 +72,26 @@ export default function NewAppointmentPage() {
       return;
     }
 
-    fetchData();
-  }, [fetchData, router]);
+    fetchDoctors();
+  }, [fetchDoctors, router]);
+
+  // Search patients by ID or name
+  useEffect(() => {
+    const searchPatients = async () => {
+      if (!patientSearch.trim()) {
+        setPatientResults([]);
+        return;
+      }
+      try {
+        const res = await apiClient.getPatients<Patient>(1, patientSearch.trim());
+        setPatientResults(res.data || []);
+      } catch {
+        setPatientResults([]);
+      }
+    };
+    const timer = setTimeout(searchPatients, 300);
+    return () => clearTimeout(timer);
+  }, [patientSearch]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -76,6 +100,32 @@ export default function NewAppointmentPage() {
       [name]: value,
     }));
   };
+
+  // Check doctor availability when doctor, date, or time changes
+  useEffect(() => {
+    const checkAvailability = async () => {
+      if (!formData.doctor_id || !formData.appointment_date || !formData.appointment_time) {
+        setAvailability({});
+        return;
+      }
+      try {
+        setCheckingAvailability(true);
+        const result = await apiClient.checkDoctorAvailability({
+          doctor_id: parseInt(formData.doctor_id),
+          date: formData.appointment_date,
+          time: formData.appointment_time,
+        });
+        setAvailability(result);
+      } catch {
+        setAvailability({ available: false, message: 'Unable to check availability' });
+      } finally {
+        setCheckingAvailability(false);
+      }
+    };
+
+    const timer = setTimeout(checkAvailability, 300);
+    return () => clearTimeout(timer);
+  }, [formData.doctor_id, formData.appointment_date, formData.appointment_time]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,24 +189,67 @@ export default function NewAppointmentPage() {
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Patient Selection */}
-                <div>
+                <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Patient <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    name="patient_id"
-                    value={formData.patient_id}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select a patient</option>
-                    {patients.map((patient) => (
-                      <option key={patient.id} value={patient.id}>
-                        {patient.full_name} ({patient.patient_number})
-                      </option>
-                    ))}
-                  </select>
+                  {selectedPatient ? (
+                    <div className="flex items-center justify-between px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                      <span className="text-gray-900">
+                        {selectedPatient.full_name} ({selectedPatient.patient_id || selectedPatient.patient_number})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPatient(null);
+                          setFormData((prev) => ({ ...prev, patient_id: '' }));
+                          setPatientSearch('');
+                        }}
+                        className="text-sm text-red-600 hover:underline"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        value={patientSearch}
+                        onChange={(e) => {
+                          setPatientSearch(e.target.value);
+                          setShowPatientDropdown(true);
+                        }}
+                        onFocus={() => setShowPatientDropdown(true)}
+                        placeholder="Search by patient name or ID..."
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      {showPatientDropdown && patientResults.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                          {patientResults.map((patient) => (
+                            <button
+                              key={patient.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedPatient(patient);
+                                setFormData((prev) => ({ ...prev, patient_id: String(patient.id) }));
+                                setShowPatientDropdown(false);
+                                setPatientSearch('');
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b last:border-b-0"
+                            >
+                              <div className="text-sm font-medium text-gray-900">{patient.full_name}</div>
+                              <div className="text-xs text-gray-500">ID: {patient.patient_id || patient.patient_number}</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {showPatientDropdown && patientSearch && patientResults.length === 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm text-gray-500">
+                          No patients found
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 {/* Doctor Selection */}
@@ -200,6 +293,28 @@ export default function NewAppointmentPage() {
                     required
                   />
                 </div>
+
+                {checkingAvailability && (
+                  <p className="text-sm text-gray-500">Checking doctor availability...</p>
+                )}
+                {!checkingAvailability && availability.message && (
+                  <div className={`p-3 rounded-lg text-sm ${availability.available ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    {availability.available ? (
+                      <span>
+                        ✅ {availability.message} ({availability.schedule?.start_time} - {availability.schedule?.end_time})
+                      </span>
+                    ) : (
+                      <span>
+                        ❌ {availability.message}
+                        {availability.schedule && (
+                          <span className="block mt-1 text-xs">
+                            Scheduled hours: {availability.schedule.start_time} - {availability.schedule.end_time} on {availability.schedule.day_name}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Appointment Type */}
                 <div>

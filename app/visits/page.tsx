@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePermission } from '@/hooks/usePermission';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api';
 import { Layout } from '@/components/Layout';
@@ -36,6 +37,7 @@ interface Visit {
 
 export default function VisitsPage() {
   const router = useRouter();
+  const { can } = usePermission();
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -133,12 +135,14 @@ export default function VisitsPage() {
             </h1>
             <p className="text-gray-600 mt-2">Manage patient consultations and medical visits</p>
           </div>
-          <Link href="/visits/new">
-            <Button variant="primary" className="flex items-center gap-2">
-              <Plus size={20} />
-              New Visit
-            </Button>
-          </Link>
+          {can('create_visits') && (
+            <Link href="/visits/new">
+              <Button variant="primary" className="flex items-center gap-2">
+                <Plus size={20} />
+                New Visit
+              </Button>
+            </Link>
+          )}
         </div>
 
         {/* Error Alert */}
@@ -320,12 +324,12 @@ export default function VisitsPage() {
                                 <Eye size={16} />
                               </Button>
                             </Link>
-                            {visit.status === 'scheduled' && (
+                            {visit.status === 'scheduled' && can('edit_visits') && (
                               <Button variant="primary" size="sm" onClick={() => handleUpdateStatus(visit.id, 'in_progress')}>
                                 Start
                               </Button>
                             )}
-                            {visit.status === 'in_progress' && (
+                            {visit.status === 'in_progress' && can('edit_visits') && (
                               <Button variant="primary" size="sm" onClick={() => handleUpdateStatus(visit.id, 'completed')}>
                                 Complete
                               </Button>

@@ -13,6 +13,7 @@ import Link from 'next/link';
 interface Patient {
   id: number;
   patient_number: string;
+  patient_id: string;
   first_name: string;
   last_name: string;
   full_name: string;
@@ -113,7 +114,7 @@ export default function PatientDetailPage() {
             </Link>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{patient.full_name}</h1>
-              <p className="text-gray-600 mt-1">Patient ID: {patient.patient_number}</p>
+              <p className="text-gray-600 mt-1">Patient ID: {patient.patient_id || patient.patient_number}</p>
             </div>
           </div>
           <Link href={`/patients/${patient.id}/edit`}>

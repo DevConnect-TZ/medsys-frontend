@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
 import { FlaskConical, CheckCircle, Clock, AlertCircle, ArrowLeft } from 'lucide-react';
+import { usePermission } from '@/hooks/usePermission';
 import Link from 'next/link';
 
 interface LabOrder {
@@ -31,6 +32,7 @@ export default function LabsPage() {
 
 function LabsPageContent() {
   const router = useRouter();
+  const { can } = usePermission();
   const searchParams = useSearchParams();
   const appointmentId = searchParams.get('appointment_id');
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
@@ -140,7 +142,7 @@ function LabsPageContent() {
                         <td className="py-3 px-4">Tshs {Number(order.cost).toLocaleString()}</td>
                         <td className="py-3 px-4">
                           <div className="flex gap-2">
-                            {order.status === 'pending' && (
+                            {order.status === 'pending' && can('create_lab_results') && (
                               <Link href={`/labs/orders/${order.id}/results`}>
                                 <Button variant="primary" size="sm">
                                   Add Results

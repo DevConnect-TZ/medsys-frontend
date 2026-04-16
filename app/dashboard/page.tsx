@@ -6,10 +6,11 @@ import { useAuthStore } from '@/lib/store';
 import { apiClient, type ApiListResponse } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
+import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
 import { usePermission } from '@/hooks/usePermission';
 import { ROLE_PERMISSIONS } from '@/lib/roles';
-import { Users, Calendar, TrendingUp, Activity, Clock, FlaskConical, Package, CreditCard } from 'lucide-react';
+import { Users, Calendar, TrendingUp, Activity, Clock, FlaskConical, Package, CreditCard, Stethoscope, Eye } from 'lucide-react';
 import Link from 'next/link';
 
 interface DashboardStats {
@@ -26,6 +27,15 @@ interface AppointmentSummary {
   status: string;
 }
 
+interface VisitSummary {
+  id: number;
+  patient_name: string;
+  doctor_name: string;
+  visit_date: string;
+  status: string;
+  chief_complaint?: string;
+}
+
 const emptyListResponse = <T,>(withData = false): ApiListResponse<T> => ({
   data: withData ? [] : undefined,
   meta: { total: 0 },
@@ -38,6 +48,12 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Queue data for doctors
+  const [queueTab, setQueueTab] = useState<'appointments' | 'visits'>('appointments');
+  const [appointmentsQueue, setAppointmentsQueue] = useState<AppointmentSummary[]>([]);
+  const [visitsQueue, setVisitsQueue] = useState<VisitSummary[]>([]);
+  const [queueLoading, setQueueLoading] = useState(false);
 
   useEffect(() => {
     // Check authentication and load user if needed
@@ -91,7 +107,21 @@ export default function DashboardPage() {
           requests.push(apiClient.getPrescriptions(1).catch(() => emptyListResponse()));
         }
 
-        const results = await Promise.all(requests);
+        // Fetch queue data for doctors in parallel
+        const queueRequests = [];
+        if (user?.role === 'doctor') {
+          queueRequests.push(
+            apiClient.getAppointments(1, { my_queue: true, per_page: 10 }).catch(() => emptyListResponse<AppointmentSummary>(true))
+          );
+          queueRequests.push(
+            apiClient.getVisits(1, { doctor_id: user.id, date: new Date().toISOString().split('T')[0], per_page: 10 }).catch(() => emptyListResponse<VisitSummary>(true))
+          );
+        }
+
+        const [results, queueResults] = await Promise.all([
+          Promise.all(requests),
+          Promise.all(queueRequests),
+        ]);
         let resultsIndex = 0;
 
         const newStats: DashboardStats = {
@@ -120,6 +150,14 @@ export default function DashboardPage() {
         }
 
         setStats(newStats);
+
+        // Set queue data
+        if (user?.role === 'doctor') {
+          const apptsRes = queueResults[0] as ApiListResponse<AppointmentSummary>;
+          const visitsRes = queueResults[1] as ApiListResponse<VisitSummary>;
+          setAppointmentsQueue(apptsRes.data || []);
+          setVisitsQueue(visitsRes.data || []);
+        }
       } catch (err) {
         console.error('Failed to load stats:', err);
         setStats({
@@ -356,6 +394,95 @@ export default function DashboardPage() {
           <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
             <p className="text-slate-600 font-medium">No dashboard data available. Check your permissions.</p>
           </div>
+        )}
+
+        {/* Doctor Queue */}
+        {user?.role === 'doctor' && (
+          <Card className="mb-6">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 border-b border-gray-200">
+                <button
+                  onClick={() => setQueueTab('appointments')}
+                  className={`pb-3 text-sm font-semibold flex items-center gap-2 ${queueTab === 'appointments' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <Calendar size={18} />
+                  Appointments Queue
+                  <span className="ml-1 bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-xs">
+                    {appointmentsQueue.length}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setQueueTab('visits')}
+                  className={`pb-3 text-sm font-semibold flex items-center gap-2 ${queueTab === 'visits' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <Stethoscope size={18} />
+                  Visits Queue
+                  <span className="ml-1 bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-xs">
+                    {visitsQueue.length}
+                  </span>
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {queueLoading ? (
+                <p className="text-gray-600 text-center py-8">Loading queue...</p>
+              ) : queueTab === 'appointments' ? (
+                appointmentsQueue.length === 0 ? (
+                  <p className="text-gray-600 text-center py-8">No appointments in your queue</p>
+                ) : (
+                  <div className="space-y-3">
+                    {appointmentsQueue.slice(0, 5).map((appt: any) => (
+                      <div key={appt.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <div>
+                          <p className="font-medium text-gray-900">{appt.patient_name || `Patient #${appt.patient_id}`}</p>
+                          <p className="text-sm text-gray-500">{appt.appointment_date} • {appt.appointment_time}</p>
+                        </div>
+                        <Link href={`/appointments/${appt.id}`}>
+                          <Button variant="outline" size="sm">
+                            <Eye size={16} className="mr-1" />
+                            View
+                          </Button>
+                        </Link>
+                      </div>
+                    ))}
+                    {appointmentsQueue.length > 5 && (
+                      <div className="text-center">
+                        <Link href="/appointments" className="text-sm text-blue-600 hover:underline font-medium">
+                          View all appointments →
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )
+              ) : visitsQueue.length === 0 ? (
+                <p className="text-gray-600 text-center py-8">No visits scheduled for today</p>
+              ) : (
+                <div className="space-y-3">
+                  {visitsQueue.slice(0, 5).map((visit) => (
+                    <div key={visit.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <div>
+                        <p className="font-medium text-gray-900">{visit.patient_name}</p>
+                        <p className="text-sm text-gray-500">{visit.visit_date} • {visit.chief_complaint || 'No complaint recorded'}</p>
+                      </div>
+                      <Link href={`/visits/${visit.id}`}>
+                        <Button variant="outline" size="sm">
+                          <Eye size={16} className="mr-1" />
+                          View
+                        </Button>
+                      </Link>
+                    </div>
+                  ))}
+                  {visitsQueue.length > 5 && (
+                    <div className="text-center">
+                      <Link href="/visits" className="text-sm text-blue-600 hover:underline font-medium">
+                        View all visits →
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Quick Actions & User Info */}

@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { apiClient, getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
+import { usePermission } from '@/hooks/usePermission';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
-import { ArrowLeft, Calendar, User, Stethoscope, CreditCard, FlaskConical, Pill, CheckCircle, Plus, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Stethoscope, CreditCard, FlaskConical, Pill, CheckCircle, Plus, Trash2, X, BedDouble } from 'lucide-react';
 import Link from 'next/link';
 
 interface VisitRecord {
@@ -104,8 +105,14 @@ export default function AppointmentDetailPage() {
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
 
+  const [showAdmissionModal, setShowAdmissionModal] = useState(false);
+  const [admissionType, setAdmissionType] = useState<'admission' | 'referral'>('admission');
+  const [admissionLocation, setAdmissionLocation] = useState('');
+  const [admissionNotes, setAdmissionNotes] = useState('');
+  const [admissionLoading, setAdmissionLoading] = useState(false);
+
+  const { can } = usePermission();
   const role = user?.role || '';
-  const isAdmin = role === 'admin';
 
   const fetchAppointment = useCallback(async () => {
     try {
@@ -221,6 +228,29 @@ export default function AppointmentDetailPage() {
 
   const invoiceSubtotal = invoiceItems.reduce((sum, it) => sum + (Number(it.total) || 0), 0);
 
+  const submitAdmission = async () => {
+    if (!appointment) return;
+    setAdmissionLoading(true);
+    try {
+      await apiClient.createAdmission({
+        patient_id: appointment.patient_id,
+        doctor_id: appointment.doctor_id,
+        appointment_id: appointment.id,
+        type: admissionType,
+        location: admissionLocation,
+        notes: admissionNotes,
+      });
+      setShowAdmissionModal(false);
+      setAdmissionLocation('');
+      setAdmissionNotes('');
+      fetchAppointment();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, `Failed to ${admissionType} patient`));
+    } finally {
+      setAdmissionLoading(false);
+    }
+  };
+
   const submitInvoice = async () => {
     if (!appointment) return;
     setInvoiceLoading(true);
@@ -318,7 +348,7 @@ export default function AppointmentDetailPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            {appointment.workflow_status === 'scheduled' && (role === 'doctor' || isAdmin) && (
+            {appointment.workflow_status === 'scheduled' && role === 'doctor' && (
               <Link href={`/appointments/${id}/review`}>
                 <Button variant="primary">
                   <Stethoscope size={18} className="mr-2" />
@@ -326,7 +356,7 @@ export default function AppointmentDetailPage() {
                 </Button>
               </Link>
             )}
-            {appointment.workflow_status === 'awaiting_payment' && (role === 'cashier' || isAdmin) && (
+            {appointment.workflow_status === 'awaiting_payment' && role === 'cashier' && (
               <>
                 {!hasExistingInvoice && (
                   <Button variant="primary" onClick={openInvoiceModal}>
@@ -340,7 +370,7 @@ export default function AppointmentDetailPage() {
                 </Button>
               </>
             )}
-            {appointment.workflow_status === 'paid' && (role === 'lab_technician' || isAdmin) && (
+            {appointment.workflow_status === 'paid' && role === 'lab_technician' && (
               <Link href={`/labs?appointment_id=${appointment.id}`}>
                 <Button variant="primary">
                   <FlaskConical size={18} className="mr-2" />
@@ -348,7 +378,7 @@ export default function AppointmentDetailPage() {
                 </Button>
               </Link>
             )}
-            {appointment.workflow_status === 'lab_completed' && (role === 'doctor' || isAdmin) && (
+            {appointment.workflow_status === 'lab_completed' && role === 'doctor' && (
               <Link href={`/appointments/${id}/prescribe`}>
                 <Button variant="primary">
                   <Stethoscope size={18} className="mr-2" />
@@ -356,11 +386,23 @@ export default function AppointmentDetailPage() {
                 </Button>
               </Link>
             )}
-            {appointment.workflow_status === 'pharmacy_pending' && (role === 'pharmacist' || isAdmin) && (
+            {appointment.workflow_status === 'pharmacy_pending' && role === 'pharmacist' && (
               <Button variant="primary" onClick={handleDispense}>
                 <Pill size={18} className="mr-2" />
                 Dispense
               </Button>
+            )}
+            {role === 'doctor' && !['cancelled', 'completed'].includes(appointment.workflow_status) && (
+              <>
+                <Button variant="secondary" onClick={() => { setAdmissionType('admission'); setShowAdmissionModal(true); }}>
+                  <BedDouble size={18} className="mr-2" />
+                  Admit
+                </Button>
+                <Button variant="secondary" onClick={() => { setAdmissionType('referral'); setShowAdmissionModal(true); }}>
+                  <Stethoscope size={18} className="mr-2" />
+                  Refer
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -546,6 +588,50 @@ export default function AppointmentDetailPage() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Admission / Referral Modal */}
+        {showAdmissionModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b flex justify-between items-center">
+                <h2 className="text-xl font-bold text-gray-900 capitalize">{admissionType} Patient</h2>
+                <button onClick={() => setShowAdmissionModal(false)} className="text-gray-500 hover:text-gray-700">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {admissionType === 'admission' ? 'Ward / Bed Number' : 'Referred To'}
+                  </label>
+                  <input
+                    type="text"
+                    value={admissionLocation}
+                    onChange={(e) => setAdmissionLocation(e.target.value)}
+                    placeholder={admissionType === 'admission' ? 'e.g., Ward A - Bed 12' : 'e.g., City Hospital - Cardiology'}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={admissionNotes}
+                    onChange={(e) => setAdmissionNotes(e.target.value)}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Additional notes..."
+                  />
+                </div>
+              </div>
+              <div className="p-6 border-t flex justify-end gap-3">
+                <Button variant="secondary" onClick={() => setShowAdmissionModal(false)}>Cancel</Button>
+                <Button variant="primary" isLoading={admissionLoading} onClick={submitAdmission}>
+                  Confirm {admissionType === 'admission' ? 'Admission' : 'Referral'}
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Invoice Modal */}

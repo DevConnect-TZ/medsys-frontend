@@ -14,6 +14,7 @@ import Link from 'next/link';
 interface Patient {
   id: number;
   patient_number: string;
+  patient_id: string;
   first_name: string;
   last_name: string;
   full_name: string;
@@ -58,6 +59,9 @@ export default function EditAppointmentPage() {
     reason: '',
     notes: '',
   });
+
+  const [availability, setAvailability] = useState<{ available?: boolean; message?: string; schedule?: { start_time: string; end_time: string; day_name: string } }>({});
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -118,6 +122,32 @@ export default function EditAppointmentPage() {
       [name]: value,
     }));
   };
+
+  // Check doctor availability when doctor, date, or time changes
+  useEffect(() => {
+    const checkAvailability = async () => {
+      if (!formData.doctor_id || !formData.appointment_date || !formData.appointment_time) {
+        setAvailability({});
+        return;
+      }
+      try {
+        setCheckingAvailability(true);
+        const result = await apiClient.checkDoctorAvailability({
+          doctor_id: parseInt(formData.doctor_id),
+          date: formData.appointment_date,
+          time: formData.appointment_time,
+        });
+        setAvailability(result);
+      } catch {
+        setAvailability({ available: false, message: 'Unable to check availability' });
+      } finally {
+        setCheckingAvailability(false);
+      }
+    };
+
+    const timer = setTimeout(checkAvailability, 300);
+    return () => clearTimeout(timer);
+  }, [formData.doctor_id, formData.appointment_date, formData.appointment_time]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,7 +225,7 @@ export default function EditAppointmentPage() {
                     <option value="">Select a patient</option>
                     {patients.map((patient) => (
                       <option key={patient.id} value={patient.id}>
-                        {patient.full_name} ({patient.patient_number})
+                        {patient.full_name} ({patient.patient_id || patient.patient_number})
                       </option>
                     ))}
                   </select>
@@ -242,6 +272,28 @@ export default function EditAppointmentPage() {
                     required
                   />
                 </div>
+
+                {checkingAvailability && (
+                  <p className="text-sm text-gray-500">Checking doctor availability...</p>
+                )}
+                {!checkingAvailability && availability.message && (
+                  <div className={`p-3 rounded-lg text-sm ${availability.available ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    {availability.available ? (
+                      <span>
+                        ✅ {availability.message} ({availability.schedule?.start_time} - {availability.schedule?.end_time})
+                      </span>
+                    ) : (
+                      <span>
+                        ❌ {availability.message}
+                        {availability.schedule && (
+                          <span className="block mt-1 text-xs">
+                            Scheduled hours: {availability.schedule.start_time} - {availability.schedule.end_time} on {availability.schedule.day_name}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Appointment Type and Status */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

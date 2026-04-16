@@ -23,6 +23,7 @@ export const ROLE_PERMISSIONS: Record<string, {
       'view_medical_tests',
       'manage_medical_tests',
       'manage_doctor_schedules',
+      'manage_wards',
       'view_invoices',
       'view_payments',
     ],

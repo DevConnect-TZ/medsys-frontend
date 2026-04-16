@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Alert } from '@/components/Alert';
-import { Settings, User, Lock, Bell, FlaskConical, CalendarDays } from 'lucide-react';
+import { Settings, User, Lock, Bell, FlaskConical, CalendarDays, Building2 } from 'lucide-react';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -89,6 +89,134 @@ export default function SettingsPage() {
       fetchSchedules();
     }
   }, [activeTab, isAdmin, fetchSchedules]);
+
+  // Wards & Beds state
+  interface Ward {
+    id: number;
+    name: string;
+    description: string;
+    is_active: boolean;
+    beds_count: number;
+  }
+
+  interface Bed {
+    id: number;
+    ward_id: number;
+    ward_name: string;
+    bed_number: string;
+    is_occupied: boolean;
+    is_active: boolean;
+  }
+
+  const [wards, setWards] = useState<Ward[]>([]);
+  const [beds, setBeds] = useState<Bed[]>([]);
+  const [wardsLoading, setWardsLoading] = useState(false);
+  const [wardForm, setWardForm] = useState({ name: '', description: '' });
+  const [bedForm, setBedForm] = useState({ ward_id: '', bed_number: '' });
+  const [wardsTab, setWardsTab] = useState<'wards' | 'beds'>('wards');
+
+  const fetchWardsAndBeds = useCallback(async () => {
+    try {
+      setWardsLoading(true);
+      const [wardsRes, bedsRes] = await Promise.all([
+        apiClient.getWards<Ward>(),
+        apiClient.getBeds<Bed>(),
+      ]);
+      setWards(wardsRes.data || []);
+      setBeds(bedsRes.data || []);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to load wards and beds'));
+    } finally {
+      setWardsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin && activeTab === 'wards_and_beds') {
+      fetchWardsAndBeds();
+    }
+  }, [activeTab, isAdmin, fetchWardsAndBeds]);
+
+  const handleWardSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    try {
+      await apiClient.createWard(wardForm);
+      setSuccess('Ward created successfully');
+      setWardForm({ name: '', description: '' });
+      fetchWardsAndBeds();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to create ward'));
+    }
+  };
+
+  const handleBedSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    try {
+      await apiClient.createBed({
+        ward_id: parseInt(bedForm.ward_id),
+        bed_number: bedForm.bed_number,
+      });
+      setSuccess('Bed created successfully');
+      setBedForm({ ward_id: '', bed_number: '' });
+      fetchWardsAndBeds();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to create bed'));
+    }
+  };
+
+  const toggleWardStatus = async (ward: Ward) => {
+    setError('');
+    setSuccess('');
+    try {
+      await apiClient.updateWard(ward.id, { is_active: !ward.is_active });
+      setSuccess('Ward updated successfully');
+      fetchWardsAndBeds();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update ward'));
+    }
+  };
+
+  const deleteWard = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this ward?')) return;
+    setError('');
+    setSuccess('');
+    try {
+      await apiClient.deleteWard(id);
+      setSuccess('Ward deleted successfully');
+      fetchWardsAndBeds();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to delete ward'));
+    }
+  };
+
+  const toggleBedStatus = async (bed: Bed) => {
+    setError('');
+    setSuccess('');
+    try {
+      await apiClient.updateBed(bed.id, { is_active: !bed.is_active });
+      setSuccess('Bed updated successfully');
+      fetchWardsAndBeds();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update bed'));
+    }
+  };
+
+  const deleteBed = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this bed?')) return;
+    setError('');
+    setSuccess('');
+    try {
+      await apiClient.deleteBed(id);
+      setSuccess('Bed deleted successfully');
+      fetchWardsAndBeds();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to delete bed'));
+    }
+  };
 
   const handleScheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -227,6 +355,7 @@ export default function SettingsPage() {
     ...(isAdmin ? [
       { id: 'medical_tests', label: 'Medical Tests', icon: FlaskConical },
       { id: 'doctor_schedules', label: 'Doctor Schedules', icon: CalendarDays },
+      { id: 'wards_and_beds', label: 'Wards & Beds', icon: Building2 },
     ] : []),
   ];
 
@@ -528,6 +657,173 @@ export default function SettingsPage() {
                         </tbody>
                       </table>
                     </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Wards & Beds Tab */}
+            {activeTab === 'wards_and_beds' && isAdmin && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Wards & Beds</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-4">
+                    Manage hospital wards and beds. Beds can be assigned to admitted patients.
+                  </p>
+
+                  <div className="flex items-center gap-4 border-b border-gray-200 mb-6">
+                    <button
+                      onClick={() => setWardsTab('wards')}
+                      className={`pb-3 text-sm font-semibold ${wardsTab === 'wards' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      Wards
+                    </button>
+                    <button
+                      onClick={() => setWardsTab('beds')}
+                      className={`pb-3 text-sm font-semibold ${wardsTab === 'beds' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      Beds
+                    </button>
+                  </div>
+
+                  {wardsLoading ? (
+                    <p className="text-gray-600 text-center py-8">Loading...</p>
+                  ) : wardsTab === 'wards' ? (
+                    <>
+                      <form onSubmit={handleWardSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end mb-6 p-4 bg-gray-50 rounded-lg">
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Ward Name</label>
+                          <Input
+                            value={wardForm.name}
+                            onChange={(e) => setWardForm({ ...wardForm, name: e.target.value })}
+                            placeholder="e.g., General Ward"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Button type="submit" variant="primary">Add Ward</Button>
+                        </div>
+                      </form>
+
+                      {wards.length === 0 ? (
+                        <p className="text-gray-600 text-center py-8">No wards found</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Name</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Beds</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {wards.map((w) => (
+                                <tr key={w.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm text-gray-900 font-medium">{w.name}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-600">{w.beds_count || 0}</td>
+                                  <td className="px-4 py-3 text-sm">
+                                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${w.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                      {w.is_active ? 'Active' : 'Inactive'}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <div className="flex justify-end gap-2">
+                                      <Button variant="outline" size="sm" onClick={() => toggleWardStatus(w)}>
+                                        {w.is_active ? 'Deactivate' : 'Activate'}
+                                      </Button>
+                                      <Button variant="danger" size="sm" onClick={() => deleteWard(w.id)}>
+                                        Delete
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <form onSubmit={handleBedSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mb-6 p-4 bg-gray-50 rounded-lg">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Ward</label>
+                          <select
+                            value={bedForm.ward_id}
+                            onChange={(e) => setBedForm({ ...bedForm, ward_id: e.target.value })}
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">Select ward</option>
+                            {wards.filter(w => w.is_active).map((w) => (
+                              <option key={w.id} value={w.id}>{w.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Bed Number</label>
+                          <Input
+                            value={bedForm.bed_number}
+                            onChange={(e) => setBedForm({ ...bedForm, bed_number: e.target.value })}
+                            placeholder="e.g., 12A"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Button type="submit" variant="primary">Add Bed</Button>
+                        </div>
+                      </form>
+
+                      {beds.length === 0 ? (
+                        <p className="text-gray-600 text-center py-8">No beds found</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Ward</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Bed Number</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Occupied</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
+                                <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {beds.map((b) => (
+                                <tr key={b.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm text-gray-900">{b.ward_name}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-900 font-medium">{b.bed_number}</td>
+                                  <td className="px-4 py-3 text-sm">
+                                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${b.is_occupied ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                                      {b.is_occupied ? 'Yes' : 'No'}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-sm">
+                                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${b.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                      {b.is_active ? 'Active' : 'Inactive'}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <div className="flex justify-end gap-2">
+                                      <Button variant="outline" size="sm" onClick={() => toggleBedStatus(b)}>
+                                        {b.is_active ? 'Deactivate' : 'Activate'}
+                                      </Button>
+                                      <Button variant="danger" size="sm" onClick={() => deleteBed(b.id)}>
+                                        Delete
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>

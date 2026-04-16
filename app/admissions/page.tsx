@@ -17,6 +17,7 @@ interface Admission {
   patient_identifier: string;
   doctor_id: number;
   doctor_name: string;
+  bed_name?: string;
   type: 'admission' | 'referral';
   status: 'active' | 'discharged' | 'completed';
   location: string;
@@ -148,7 +149,7 @@ export default function AdmissionsPage() {
                       <tr>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Patient</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Doctor</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">{activeTab === 'admission' ? 'Ward / Bed' : 'Referred To'}</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">{activeTab === 'admission' ? 'Bed / Location' : 'Referred To'}</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Date</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
                         <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Actions</th>
@@ -162,7 +163,7 @@ export default function AdmissionsPage() {
                             <div className="text-xs text-gray-500">ID: {item.patient_identifier}</div>
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-600">Dr. {item.doctor_name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{item.location || '—'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{item.bed_name || item.location || '—'}</td>
                           <td className="px-4 py-3 text-sm text-gray-600">
                             {new Date(item.created_at).toLocaleDateString()}
                           </td>

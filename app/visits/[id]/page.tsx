@@ -43,6 +43,8 @@ export default function VisitDetailPage() {
   const [admissionLocation, setAdmissionLocation] = useState('');
   const [admissionNotes, setAdmissionNotes] = useState('');
   const [admissionLoading, setAdmissionLoading] = useState(false);
+  const [availableBeds, setAvailableBeds] = useState<{ id: number; ward_name: string; bed_number: string }[]>([]);
+  const [selectedBedId, setSelectedBedId] = useState<string>('');
 
   const role = user?.role || '';
 
@@ -84,18 +86,33 @@ export default function VisitDetailPage() {
         doctor_id: visit.doctor_id,
         visit_id: visit.id,
         type: admissionType,
+        bed_id: admissionType === 'admission' && selectedBedId ? parseInt(selectedBedId) : undefined,
         location: admissionLocation,
         notes: admissionNotes,
       });
       setShowAdmissionModal(false);
       setAdmissionLocation('');
       setAdmissionNotes('');
+      setSelectedBedId('');
       fetchVisit();
     } catch (err: unknown) {
       setError(getErrorMessage(err, `Failed to ${admissionType} patient`));
     } finally {
       setAdmissionLoading(false);
     }
+  };
+
+  const openAdmissionModal = async (type: 'admission' | 'referral') => {
+    setAdmissionType(type);
+    if (type === 'admission') {
+      try {
+        const res = await apiClient.getBeds<{ id: number; ward_name: string; bed_number: string }>({ available: true });
+        setAvailableBeds(res.data || []);
+      } catch {
+        setAvailableBeds([]);
+      }
+    }
+    setShowAdmissionModal(true);
   };
 
   if (loading) {
@@ -146,11 +163,11 @@ export default function VisitDetailPage() {
           <div className="flex gap-2">
             {role === 'doctor' && !['admitted', 'referred', 'cancelled'].includes(visit.status) && (
               <>
-                <Button variant="secondary" onClick={() => { setAdmissionType('admission'); setShowAdmissionModal(true); }}>
+                <Button variant="secondary" onClick={() => openAdmissionModal('admission')}>
                   <BedDouble size={18} className="mr-2" />
                   Admit
                 </Button>
-                <Button variant="secondary" onClick={() => { setAdmissionType('referral'); setShowAdmissionModal(true); }}>
+                <Button variant="secondary" onClick={() => openAdmissionModal('referral')}>
                   <Stethoscope size={18} className="mr-2" />
                   Refer
                 </Button>
@@ -242,9 +259,32 @@ export default function VisitDetailPage() {
                 </button>
               </div>
               <div className="p-6 space-y-4">
+                {admissionType === 'admission' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Bed</label>
+                    <select
+                      value={selectedBedId}
+                      onChange={(e) => {
+                        setSelectedBedId(e.target.value);
+                        const bed = availableBeds.find((b) => String(b.id) === e.target.value);
+                        if (bed) {
+                          setAdmissionLocation(`${bed.ward_name} - Bed ${bed.bed_number}`);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select an available bed</option>
+                      {availableBeds.map((bed) => (
+                        <option key={bed.id} value={bed.id}>
+                          {bed.ward_name} - Bed {bed.bed_number}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {admissionType === 'admission' ? 'Ward / Bed Number' : 'Referred To'}
+                    {admissionType === 'admission' ? 'Location / Notes' : 'Referred To'}
                   </label>
                   <input
                     type="text"

@@ -215,6 +215,39 @@ class ApiClient {
     return this.post(`/appointments/${id}/dispense`, {});
   }
 
+  // Wards & Beds
+  async getWards<T>(): Promise<{ success: boolean; data?: T[] }> {
+    return this.get<{ success: boolean; data?: T[] }>('/wards');
+  }
+
+  async createWard<T>(data: ApiPayload): Promise<{ success: boolean; message?: string; data?: T }> {
+    return this.post<{ success: boolean; message?: string; data?: T }>('/wards', data);
+  }
+
+  async updateWard<T>(id: number, data: ApiPayload): Promise<{ success: boolean; message?: string; data?: T }> {
+    return this.put<{ success: boolean; message?: string; data?: T }>(`/wards/${id}`, data);
+  }
+
+  async deleteWard(id: number) {
+    return this.delete(`/wards/${id}`);
+  }
+
+  async getBeds<T>(params?: ApiParams): Promise<{ success: boolean; data?: T[] }> {
+    return this.get<{ success: boolean; data?: T[] }>('/beds', params);
+  }
+
+  async createBed<T>(data: ApiPayload): Promise<{ success: boolean; message?: string; data?: T }> {
+    return this.post<{ success: boolean; message?: string; data?: T }>('/beds', data);
+  }
+
+  async updateBed<T>(id: number, data: ApiPayload): Promise<{ success: boolean; message?: string; data?: T }> {
+    return this.put<{ success: boolean; message?: string; data?: T }>(`/beds/${id}`, data);
+  }
+
+  async deleteBed(id: number) {
+    return this.delete(`/beds/${id}`);
+  }
+
   // Admissions
   async getAdmissions<T>(page = 1, params?: ApiParams): Promise<ApiListResponse<T>> {
     return this.get<ApiListResponse<T>>('/admissions', { page, ...params });

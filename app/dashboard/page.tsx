@@ -10,7 +10,7 @@ import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
 import { usePermission } from '@/hooks/usePermission';
 import { ROLE_PERMISSIONS } from '@/lib/roles';
-import { Users, Calendar, TrendingUp, Activity, Clock, FlaskConical, Package, CreditCard, Stethoscope, Eye } from 'lucide-react';
+import { Users, Calendar, TrendingUp, Activity, Clock, FlaskConical, Package, CreditCard, Stethoscope, Eye, BedDouble } from 'lucide-react';
 import Link from 'next/link';
 
 interface DashboardStats {
@@ -21,6 +21,8 @@ interface DashboardStats {
   totalLabs?: number;
   totalPrescriptions?: number;
   totalInventory?: number;
+  queueVisits?: number;
+  admittedPatients?: number;
 }
 
 interface AppointmentSummary {
@@ -114,13 +116,25 @@ export default function DashboardPage() {
             apiClient.getAppointments(1, { my_queue: true, per_page: 10 }).catch(() => emptyListResponse<AppointmentSummary>(true))
           );
           queueRequests.push(
-            apiClient.getVisits(1, { doctor_id: user.id, date: new Date().toISOString().split('T')[0], per_page: 10 }).catch(() => emptyListResponse<VisitSummary>(true))
+            apiClient.getVisits(1, { my_queue: true, per_page: 10 }).catch(() => emptyListResponse<VisitSummary>(true))
           );
         }
 
-        const [results, queueResults] = await Promise.all([
+        // Admin-specific stats
+        const adminRequests = [];
+        if (user?.role === 'admin') {
+          adminRequests.push(
+            apiClient.getVisits(1, { workflow_status: 'scheduled', per_page: 1 }).catch(() => emptyListResponse())
+          );
+          adminRequests.push(
+            apiClient.getAdmissions(1, { status: 'active', per_page: 1 }).catch(() => emptyListResponse())
+          );
+        }
+
+        const [results, queueResults, adminResults] = await Promise.all([
           Promise.all(requests),
           Promise.all(queueRequests),
+          Promise.all(adminRequests),
         ]);
         let resultsIndex = 0;
 
@@ -147,6 +161,11 @@ export default function DashboardPage() {
         }
         if (can('view_prescriptions')) {
           newStats.totalPrescriptions = results[resultsIndex++]?.meta?.total || 0;
+        }
+
+        if (user?.role === 'admin') {
+          newStats.queueVisits = adminResults[0]?.meta?.total || 0;
+          newStats.admittedPatients = adminResults[1]?.meta?.total || 0;
         }
 
         setStats(newStats);
@@ -180,14 +199,15 @@ export default function DashboardPage() {
   // Dynamic dashboard cards based on permissions
   const getDashboardCards = () => {
     const cards = [];
+    const isAdmin = user?.role === 'admin';
 
     if (can('view_patients')) {
       cards.push({
-        title: 'Total Patients',
-        value: stats?.totalPatients || 0,
-        icon: Users,
+        title: isAdmin ? 'Queue Visits' : 'Total Patients',
+        value: isAdmin ? (stats?.queueVisits || 0) : (stats?.totalPatients || 0),
+        icon: isAdmin ? Stethoscope : Users,
         color: 'blue',
-        href: '/patients',
+        href: isAdmin ? '/visits' : '/patients',
       });
     }
 
@@ -222,11 +242,11 @@ export default function DashboardPage() {
 
     if (can('view_prescriptions')) {
       cards.push({
-        title: 'Prescriptions',
-        value: stats?.totalPrescriptions || 0,
-        icon: Package,
+        title: isAdmin ? 'Admitted Patients' : 'Prescriptions',
+        value: isAdmin ? (stats?.admittedPatients || 0) : (stats?.totalPrescriptions || 0),
+        icon: isAdmin ? BedDouble : Package,
         color: 'pink',
-        href: '/prescriptions',
+        href: isAdmin ? '/admissions' : '/prescriptions',
       });
     }
 
@@ -564,7 +584,7 @@ export default function DashboardPage() {
                         key={perm}
                         className="inline-block px-2 py-1 bg-slate-100 text-slate-700 text-[10px] sm:text-xs rounded border border-slate-200 font-semibold shadow-sm capitalize"
                       >
-                        {perm.replace(/_/g, ' ')}
+                        {perm?.replace(/_/g, ' ') || perm}
                       </span>
                     ))}
                     {roleInfo.permissions.length > 8 && (

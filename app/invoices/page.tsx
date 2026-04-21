@@ -8,19 +8,18 @@ import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
-import { FileText, DollarSign, CheckCircle, Clock } from 'lucide-react';
+import { FileText, DollarSign, CheckCircle, Clock, Plus } from 'lucide-react';
+import Link from 'next/link';
 
 interface Invoice {
   id: number;
   invoice_number: string;
   patient_id: number;
   patient_name: string;
-  amount: number;
+  total: number;
   status: 'pending' | 'paid' | 'cancelled';
-  issue_date: string;
-  due_date: string;
-  paid_date?: string;
-  description: string;
+  invoice_date: string;
+  payment_date?: string;
 }
 
 export default function InvoicesPage() {
@@ -29,6 +28,8 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -36,15 +37,16 @@ export default function InvoicesPage() {
       router.push('/login');
       return;
     }
+    fetchInvoices(currentPage);
+  }, [router, currentPage]);
 
-    fetchInvoices();
-  }, [router]);
-
-  const fetchInvoices = async () => {
+  const fetchInvoices = async (page = 1) => {
     try {
       setLoading(true);
-      const response = await apiClient.get<{ data?: Invoice[] }>('/billing/invoices');
+      const response = await apiClient.getInvoices<Invoice>(page);
       setInvoices(response.data || []);
+      setLastPage(response.meta?.last_page || 1);
+      setCurrentPage(response.meta?.current_page || 1);
       setError('');
     } catch (err) {
       setError('Failed to load invoices');
@@ -82,7 +84,8 @@ export default function InvoicesPage() {
     }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '—';
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -100,10 +103,12 @@ export default function InvoicesPage() {
             <p className="text-gray-600 mt-2">Manage billing and invoices</p>
           </div>
           {can('create_invoices') && (
-            <Button variant="primary" className="flex items-center gap-2">
-              <FileText size={20} />
-              Create Invoice
-            </Button>
+            <Link href="/invoices/new">
+              <Button variant="primary" className="flex items-center gap-2">
+                <Plus size={20} />
+                Create Invoice
+              </Button>
+            </Link>
           )}
         </div>
 
@@ -127,7 +132,7 @@ export default function InvoicesPage() {
                     {formatCurrency(
                       invoices
                         .filter((inv) => inv.status === 'paid')
-                        .reduce((sum, inv) => sum + inv.amount, 0)
+                        .reduce((sum, inv) => sum + inv.total, 0)
                     )}
                   </p>
                 </div>
@@ -147,7 +152,7 @@ export default function InvoicesPage() {
                     {formatCurrency(
                       invoices
                         .filter((inv) => inv.status === 'pending')
-                        .reduce((sum, inv) => sum + inv.amount, 0)
+                        .reduce((sum, inv) => sum + inv.total, 0)
                     )}
                   </p>
                 </div>
@@ -180,7 +185,7 @@ export default function InvoicesPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText size={20} />
-              All Invoices ({invoices.length})
+              All Invoices
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -206,10 +211,7 @@ export default function InvoicesPage() {
                         Status
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                        Issue Date
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                        Due Date
+                        Date
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-gray-700">
                         Actions
@@ -229,16 +231,13 @@ export default function InvoicesPage() {
                           {invoice.patient_name}
                         </td>
                         <td className="py-3 px-4 text-gray-900 font-semibold">
-                          {formatCurrency(invoice.amount)}
+                          {formatCurrency(invoice.total)}
                         </td>
                         <td className="py-3 px-4">
                           {getStatusBadge(invoice.status)}
                         </td>
                         <td className="py-3 px-4 text-gray-600">
-                          {formatDate(invoice.issue_date)}
-                        </td>
-                        <td className="py-3 px-4 text-gray-600">
-                          {formatDate(invoice.due_date)}
+                          {formatDate(invoice.invoice_date)}
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex gap-2">
@@ -256,6 +255,31 @@ export default function InvoicesPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {lastPage > 1 && (
+              <div className="flex justify-center items-center gap-2 mt-6">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-gray-600">
+                  Page {currentPage} of {lastPage}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(lastPage, p + 1))}
+                  disabled={currentPage >= lastPage}
+                >
+                  Next
+                </Button>
               </div>
             )}
           </CardContent>

@@ -49,7 +49,7 @@ export const ROLE_PERMISSIONS: Record<string, {
       'edit_prescriptions',
       'view_medical_tests',
     ],
-    menuItems: ['dashboard', 'patients', 'appointments', 'visits', 'admissions', 'labs', 'prescriptions'],
+    menuItems: ['dashboard', 'patients', 'appointments', 'visits', 'admissions', 'labs'],
   },
   receptionist: {
     label: 'Receptionist',

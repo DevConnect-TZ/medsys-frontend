@@ -496,7 +496,7 @@ export default function AppointmentDetailPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Workflow Status</p>
-                <p className="font-semibold text-gray-900 capitalize">{appointment.workflow_status.replace(/_/g, ' ')}</p>
+                <p className="font-semibold text-gray-900 capitalize">{appointment.workflow_status?.replace(/_/g, ' ') || appointment.workflow_status}</p>
               </div>
             </div>
             <div className="mt-4">

@@ -146,6 +146,11 @@ class ApiClient {
     return response.data;
   }
 
+  async patch<T>(endpoint: string, data?: unknown): Promise<T> {
+    const response = await this.api.patch<T>(endpoint, data);
+    return response.data;
+  }
+
   async delete<T>(endpoint: string): Promise<T> {
     const response = await this.api.delete<T>(endpoint);
     return response.data;
@@ -213,6 +218,23 @@ class ApiClient {
 
   async dispenseAppointment(id: number) {
     return this.post(`/appointments/${id}/dispense`, {});
+  }
+
+  // Visits workflow
+  async doctorReviewVisit<T>(id: number, data: ApiPayload): Promise<T> {
+    return this.post(`/visits/${id}/doctor-review`, data);
+  }
+
+  async markVisitPaid(id: number) {
+    return this.post(`/visits/${id}/mark-paid`, {});
+  }
+
+  async prescribeVisit<T>(id: number, data: ApiPayload): Promise<T> {
+    return this.post(`/visits/${id}/prescribe`, data);
+  }
+
+  async dispenseVisit(id: number) {
+    return this.post(`/visits/${id}/dispense`, {});
   }
 
   // Wards & Beds
@@ -284,46 +306,50 @@ class ApiClient {
 
   // Lab Orders
   async getLabOrders<T>(page = 1): Promise<ApiListResponse<T>> {
-    return this.get<ApiListResponse<T>>('/lab-orders', { page });
+    return this.get<ApiListResponse<T>>('/labs/orders', { page });
   }
 
   async createLabOrder<T>(data: ApiPayload): Promise<T> {
-    return this.post('/lab-orders', data);
+    return this.post('/labs/orders', data);
   }
 
   // Lab Results
   async getLabResults<T>(page = 1): Promise<ApiListResponse<T>> {
-    return this.get<ApiListResponse<T>>('/lab-results', { page });
+    return this.get<ApiListResponse<T>>('/labs/orders', { page });
   }
 
   async createLabResult<T>(data: ApiPayload): Promise<T> {
-    return this.post('/lab-results', data);
+    return this.post('/labs/results', data);
+  }
+
+  async getLabResultForOrder<T>(labOrderId: number): Promise<ApiResourceResponse<T, 'lab_result'>> {
+    return this.get<ApiResourceResponse<T, 'lab_result'>>(`/labs/results/${labOrderId}`);
   }
 
   // Prescriptions
   async getPrescriptions<T>(page = 1): Promise<ApiListResponse<T>> {
-    return this.get<ApiListResponse<T>>('/prescriptions', { page });
+    return this.get<ApiListResponse<T>>('/pharmacy/prescriptions', { page });
   }
 
   async createPrescription<T>(data: ApiPayload): Promise<T> {
-    return this.post('/prescriptions', data);
+    return this.post('/pharmacy/prescriptions', data);
   }
 
   // Invoices
   async getInvoices<T>(page = 1): Promise<ApiListResponse<T>> {
-    return this.get<ApiListResponse<T>>('/invoices', { page });
+    return this.get<ApiListResponse<T>>('/billing/invoices', { page });
   }
 
   async getInvoice<T>(id: number): Promise<ApiResourceResponse<T, 'invoice'>> {
-    return this.get<ApiResourceResponse<T, 'invoice'>>(`/invoices/${id}`);
+    return this.get<ApiResourceResponse<T, 'invoice'>>(`/billing/invoices/${id}`);
   }
 
   async createInvoice<T>(data: ApiPayload): Promise<T> {
-    return this.post('/invoices', data);
+    return this.post('/billing/invoices', data);
   }
 
   async payInvoice<T>(id: number, paymentData: ApiPayload): Promise<T> {
-    return this.put(`/invoices/${id}/pay`, paymentData);
+    return this.patch(`/billing/invoices/${id}/pay`, paymentData);
   }
 
   // Medical Tests

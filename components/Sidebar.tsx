@@ -27,7 +27,7 @@ export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
-  const { can } = usePermission();
+  const { can, getMenuItems } = usePermission();
   const [isExpanded, setIsExpanded] = useState(() => {
     if (typeof window === 'undefined') {
       return true;
@@ -77,8 +77,10 @@ export function Sidebar() {
     { label: 'Settings', href: '/settings', icon: Settings, permission: null },
   ];
 
+  const roleMenuItems = getMenuItems();
+
   const visibleMenuItems = allMenuItems.filter(
-    item => !item.permission || can(item.permission)
+    item => (!item.permission || can(item.permission)) && roleMenuItems.includes(item.label.toLowerCase())
   );
 
   const isActive = (href: string) => {
@@ -170,13 +172,13 @@ export function Sidebar() {
               <div className={clsx("mb-4 px-2", !isExpanded && "md:hidden")}>
                 <p className="text-sm font-semibold text-slate-900 truncate">{user.name}</p>
                 <p className="text-[11px] font-medium tracking-wide uppercase mt-1 text-teal-600">
-                  {user.role.replace('_', ' ')}
+                  {user.role?.replace('_', ' ') || 'User'}
                 </p>
               </div>
               <div className={clsx("mb-4 flex justify-center hidden", !isExpanded && "md:flex")}>
                 <div className="w-10 h-10 bg-blue-100 border border-blue-200 rounded-full flex items-center justify-center shadow-sm">
                   <span className="text-sm font-bold text-blue-700">
-                    {user.name.charAt(0).toUpperCase()}
+                    {user.name?.charAt(0).toUpperCase() || '?'}
                   </span>
                 </div>
               </div>

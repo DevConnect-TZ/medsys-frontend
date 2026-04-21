@@ -43,6 +43,7 @@ export default function NewVisitPage() {
     patient_id: '',
     doctor_id: '',
     visit_date: '',
+    visit_time: '',
     chief_complaint: '',
     diagnosis: '',
     medical_notes: '',
@@ -244,16 +245,25 @@ export default function NewVisitPage() {
                   </select>
                 </div>
 
-                {/* Visit Date */}
-                <Input
-                  label="Visit Date"
-                  name="visit_date"
-                  type="date"
-                  value={formData.visit_date}
-                  onChange={handleChange}
-                  max={today}
-                  required
-                />
+                {/* Visit Date & Time */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Visit Date"
+                    name="visit_date"
+                    type="date"
+                    value={formData.visit_date}
+                    onChange={handleChange}
+                    max={today}
+                    required
+                  />
+                  <Input
+                    label="Visit Time"
+                    name="visit_time"
+                    type="time"
+                    value={formData.visit_time}
+                    onChange={handleChange}
+                  />
+                </div>
 
                 {/* Chief Complaint */}
                 <div>

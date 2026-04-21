@@ -8,7 +8,7 @@ import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
-import { ArrowLeft, Stethoscope, BedDouble, X } from 'lucide-react';
+import { ArrowLeft, Stethoscope, BedDouble, X, FlaskConical, CreditCard, Pill } from 'lucide-react';
 import Link from 'next/link';
 
 interface Visit {
@@ -26,7 +26,12 @@ interface Visit {
   vital_signs?: Record<string, string | number | null>;
   consultation_fee?: number;
   status: string;
+  workflow_status: string;
+  lab_orders?: { id: number; test_name: string; status: string; result?: string }[];
+  prescriptions?: { id: number; medication_name: string; dosage: string; quantity: number; status: string }[];
 }
+
+const workflowSteps = ['scheduled', 'awaiting_payment', 'paid', 'lab_pending', 'lab_completed', 'pharmacy_pending', 'completed'];
 
 export default function VisitDetailPage() {
   const router = useRouter();
@@ -37,6 +42,7 @@ export default function VisitDetailPage() {
   const [visit, setVisit] = useState<Visit | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   const [showAdmissionModal, setShowAdmissionModal] = useState(false);
   const [admissionType, setAdmissionType] = useState<'admission' | 'referral'>('admission');
@@ -115,6 +121,52 @@ export default function VisitDetailPage() {
     setShowAdmissionModal(true);
   };
 
+  const handleMarkPaid = async () => {
+    if (!visit) return;
+    setActionLoading(true);
+    try {
+      await apiClient.post(`/visits/${visit.id}/mark-paid`, {});
+      fetchVisit();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to mark as paid'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDispense = async () => {
+    if (!visit) return;
+    setActionLoading(true);
+    try {
+      await apiClient.post(`/visits/${visit.id}/dispense`, {});
+      fetchVisit();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to dispense'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status: string | null | undefined) => {
+    const s = status ?? 'unknown';
+    const styles: Record<string, string> = {
+      scheduled: 'bg-blue-100 text-blue-800',
+      awaiting_payment: 'bg-amber-100 text-amber-800',
+      paid: 'bg-purple-100 text-purple-800',
+      lab_pending: 'bg-indigo-100 text-indigo-800',
+      lab_completed: 'bg-teal-100 text-teal-800',
+      pharmacy_pending: 'bg-pink-100 text-pink-800',
+      completed: 'bg-green-100 text-green-800',
+      cancelled: 'bg-red-100 text-red-800',
+    };
+    const label = s.replace(/_/g, ' ');
+    return (
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium capitalize ${styles[s] || 'bg-gray-100 text-gray-800'}`}>
+        {label}
+      </span>
+    );
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -141,11 +193,13 @@ export default function VisitDetailPage() {
     );
   }
 
+  const currentStepIndex = workflowSteps.indexOf(visit.workflow_status);
+
   return (
     <Layout>
       <main className="max-w-5xl mx-auto p-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
             <Link href="/visits">
               <Button variant="outline" size="sm">
@@ -157,11 +211,11 @@ export default function VisitDetailPage() {
                 <Stethoscope size={32} />
                 Visit Details
               </h1>
-              <p className="text-gray-600 mt-1">{visit.visit_number}</p>
+              <p className="text-gray-600 mt-1">{visit.visit_number || `VST-${visit.id}`}</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            {role === 'doctor' && !['admitted', 'referred', 'cancelled'].includes(visit.status) && (
+          <div className="flex gap-2 flex-wrap">
+            {role === 'doctor' && !['completed', 'cancelled'].includes(visit.workflow_status) && (
               <>
                 <Button variant="secondary" onClick={() => openAdmissionModal('admission')}>
                   <BedDouble size={18} className="mr-2" />
@@ -173,10 +227,80 @@ export default function VisitDetailPage() {
                 </Button>
               </>
             )}
+            {visit.workflow_status === 'scheduled' && role === 'doctor' && (
+              <Link href={`/visits/${visit.id}/review`}>
+                <Button variant="primary">
+                  <Stethoscope size={18} className="mr-2" />
+                  Review
+                </Button>
+              </Link>
+            )}
+            {visit.workflow_status === 'lab_completed' && role === 'doctor' && (
+              <Link href={`/visits/${visit.id}/prescribe`}>
+                <Button variant="primary">
+                  <Pill size={18} className="mr-2" />
+                  Prescribe
+                </Button>
+              </Link>
+            )}
+            {visit.workflow_status === 'awaiting_payment' && role === 'cashier' && (
+              <Button variant="primary" isLoading={actionLoading} onClick={handleMarkPaid}>
+                <CreditCard size={18} className="mr-2" />
+                Mark Paid
+              </Button>
+            )}
+            {visit.workflow_status === 'paid' && role === 'lab_technician' && (
+              <Link href={`/labs?visit_id=${visit.id}`}>
+                <Button variant="primary">
+                  <FlaskConical size={18} className="mr-2" />
+                  View Lab Orders
+                </Button>
+              </Link>
+            )}
+            {visit.workflow_status === 'pharmacy_pending' && role === 'pharmacist' && (
+              <Button variant="primary" isLoading={actionLoading} onClick={handleDispense}>
+                <Pill size={18} className="mr-2" />
+                Dispense
+              </Button>
+            )}
           </div>
         </div>
 
-        {error && <div className="mb-6"><Alert type="error" message={error} onClose={() => setError('')} /></div>}
+        {error && <div className="mb-6"><Alert type="error" message={error} /></div>}
+
+        {/* Workflow Stepper */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Workflow Progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between overflow-x-auto">
+              {workflowSteps.map((step, idx) => {
+                const isCompleted = idx <= currentStepIndex;
+                const isCurrent = idx === currentStepIndex;
+                return (
+                  <div key={step} className="flex items-center min-w-[8rem]">
+                    <div className="flex flex-col items-center">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${isCompleted ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'} ${isCurrent ? 'ring-4 ring-blue-100' : ''}`}>
+                        {idx + 1}
+                      </div>
+                      <span className={`text-xs mt-2 capitalize text-center ${isCurrent ? 'font-semibold text-blue-700' : 'text-gray-600'}`}>
+                        {step.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    {idx < workflowSteps.length - 1 && (
+                      <div className={`h-1 w-full min-w-[2rem] mx-2 ${idx < currentStepIndex ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex items-center gap-2">
+              <span className="text-sm text-gray-600">Current status:</span>
+              {getStatusBadge(visit.workflow_status)}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Info Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -212,7 +336,7 @@ export default function VisitDetailPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Status</p>
-                <p className="font-semibold text-gray-900 capitalize">{visit.status.replace('_', ' ')}</p>
+                <div className="mt-1">{getStatusBadge(visit.workflow_status)}</div>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Consultation Fee</p>
@@ -247,6 +371,50 @@ export default function VisitDetailPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Lab Orders */}
+        {(visit.lab_orders && visit.lab_orders.length > 0) && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Lab Orders</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {visit.lab_orders.map((lab) => (
+                  <div key={lab.id} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-center">
+                      <p className="font-semibold text-gray-900">{lab.test_name}</p>
+                      <span className={`text-xs px-2 py-1 rounded-full capitalize ${lab.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{lab.status}</span>
+                    </div>
+                    {lab.result && <p className="text-sm text-gray-600 mt-1">Result: {lab.result}</p>}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Prescriptions */}
+        {(visit.prescriptions && visit.prescriptions.length > 0) && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Prescriptions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {visit.prescriptions.map((pres) => (
+                  <div key={pres.id} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-center">
+                      <p className="font-semibold text-gray-900">{pres.medication_name}</p>
+                      <span className={`text-xs px-2 py-1 rounded-full capitalize ${pres.status === 'dispensed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{pres.status}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">{pres.dosage} • Qty: {pres.quantity}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Admission / Referral Modal */}
         {showAdmissionModal && (

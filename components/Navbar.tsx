@@ -11,7 +11,7 @@ import { usePermission } from '@/hooks/usePermission';
 export function Navbar() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const { can } = usePermission();
+  const { can, getMenuItems } = usePermission();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -32,9 +32,11 @@ export function Navbar() {
     { label: 'Settings', href: '/settings', icon: Settings, permission: null },
   ];
 
-  // Filter menu items based on user permissions
+  const roleMenuItems = getMenuItems();
+
+  // Filter menu items based on user permissions and role menu items
   const visibleMenuItems = allMenuItems.filter(
-    item => !item.permission || can(item.permission)
+    item => (!item.permission || can(item.permission)) && roleMenuItems.includes(item.label.toLowerCase())
   );
 
   return (
@@ -69,7 +71,7 @@ export function Navbar() {
               <>
                 <div className="text-right">
                   <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                  <p className="text-xs font-medium capitalize bg-blue-100 text-blue-700 px-2 py-1 rounded">{user.role.replace('_', ' ')}</p>
+                  <p className="text-xs font-medium capitalize bg-blue-100 text-blue-700 px-2 py-1 rounded">{user.role?.replace('_', ' ') || 'User'}</p>
                 </div>
                 <button
                   onClick={handleLogout}

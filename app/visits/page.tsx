@@ -32,6 +32,7 @@ interface Visit {
   };
   consultation_fee: number;
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  workflow_status: string;
   notes?: string;
 }
 
@@ -42,6 +43,8 @@ export default function VisitsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -50,14 +53,16 @@ export default function VisitsPage() {
       return;
     }
 
-    fetchVisits();
-  }, [router]);
+    fetchVisits(currentPage);
+  }, [router, currentPage]);
 
-  const fetchVisits = async () => {
+  const fetchVisits = async (page = 1) => {
     try {
       setLoading(true);
-      const response = await apiClient.get<{ data?: Visit[] }>('/visits');
+      const response = await apiClient.getVisits<Visit>(page);
       setVisits(response.data || []);
+      setLastPage(response.meta?.last_page || 1);
+      setCurrentPage(response.meta?.current_page || 1);
       setError('');
     } catch (err) {
       setError('Failed to load visits');
@@ -67,27 +72,23 @@ export default function VisitsPage() {
     }
   };
 
-  const handleUpdateStatus = async (id: number, status: string) => {
-    try {
-      await apiClient.put(`/visits/${id}`, { status });
-      setVisits(visits.map((visit) => (visit.id === id ? { ...visit, status: status as Visit['status'] } : visit)));
-    } catch {
-      setError(`Failed to update visit status to ${status}`);
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const styles = {
+  const getStatusBadge = (status: string | null | undefined) => {
+    const s = status ?? 'unknown';
+    const styles: Record<string, string> = {
       scheduled: 'bg-blue-100 text-blue-800',
-      in_progress: 'bg-yellow-100 text-yellow-800',
+      awaiting_payment: 'bg-amber-100 text-amber-800',
+      paid: 'bg-purple-100 text-purple-800',
+      lab_pending: 'bg-indigo-100 text-indigo-800',
+      lab_completed: 'bg-teal-100 text-teal-800',
+      pharmacy_pending: 'bg-pink-100 text-pink-800',
       completed: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800',
     };
 
-    const label = status.replace('_', ' ');
+    const label = s.replace(/_/g, ' ');
 
     return (
-      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium capitalize ${styles[status as keyof typeof styles]}`}>
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium capitalize ${styles[s] || 'bg-gray-100 text-gray-800'}`}>
         {label}
       </span>
     );
@@ -110,16 +111,17 @@ export default function VisitsPage() {
 
   const getStatusCounts = () => {
     return {
-      scheduled: visits.filter(v => v.status === 'scheduled').length,
-      in_progress: visits.filter(v => v.status === 'in_progress').length,
-      completed: visits.filter(v => v.status === 'completed').length,
+      scheduled: visits.filter(v => v.workflow_status === 'scheduled').length,
+      awaiting_payment: visits.filter(v => v.workflow_status === 'awaiting_payment').length,
+      pharmacy_pending: visits.filter(v => v.workflow_status === 'pharmacy_pending').length,
+      completed: visits.filter(v => v.workflow_status === 'completed').length,
       total: visits.length,
     };
   };
 
   const filteredVisits = filterStatus === 'all'
     ? visits
-    : visits.filter(v => v.status === filterStatus);
+    : visits.filter(v => v.workflow_status === filterStatus);
 
   const statusCounts = getStatusCounts();
 
@@ -176,13 +178,29 @@ export default function VisitsPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">In Progress</p>
+                  <p className="text-sm text-gray-600">Awaiting Payment</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">
-                    {statusCounts.in_progress}
+                    {statusCounts.awaiting_payment}
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                  <Stethoscope size={24} className="text-yellow-600" />
+                <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+                  <Stethoscope size={24} className="text-amber-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Pharmacy</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                    {statusCounts.pharmacy_pending}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center">
+                  <FileText size={24} className="text-pink-600" />
                 </div>
               </div>
             </CardContent>
@@ -198,23 +216,7 @@ export default function VisitsPage() {
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <FileText size={24} className="text-green-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Total Visits</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">
-                    {statusCounts.total}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                  <User size={24} className="text-purple-600" />
+                  <User size={24} className="text-green-600" />
                 </div>
               </div>
             </CardContent>
@@ -224,20 +226,20 @@ export default function VisitsPage() {
         {/* Filter Tabs */}
         <div className="mb-6">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              {['all', 'scheduled', 'in_progress', 'completed', 'cancelled'].map((status) => (
+            <nav className="-mb-px flex space-x-6">
+              {['all', 'scheduled', 'awaiting_payment', 'paid', 'lab_pending', 'lab_completed', 'pharmacy_pending', 'completed'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setFilterStatus(status)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm capitalize ${filterStatus === status
+                  className={`py-4 px-1 border-b-2 font-medium text-sm capitalize whitespace-nowrap ${filterStatus === status
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                 >
-                  {status.replace('_', ' ')}
+                  {status.replace(/_/g, ' ')}
                   {status !== 'all' && (
                     <span className="ml-2 bg-gray-200 text-gray-700 py-0.5 px-2 rounded-full text-xs">
-                      {visits.filter(v => v.status === status).length}
+                      {visits.filter(v => v.workflow_status === status).length}
                     </span>
                   )}
                 </button>
@@ -296,7 +298,7 @@ export default function VisitsPage() {
                         className="border-b border-gray-200 hover:bg-gray-50"
                       >
                         <td className="py-3 px-4 text-gray-900 font-medium">
-                          {visit.visit_number}
+                          {visit.visit_number || `VST-${visit.id}`}
                         </td>
                         <td className="py-3 px-4 text-gray-900">
                           {visit.patient_name}
@@ -312,7 +314,7 @@ export default function VisitsPage() {
                           {visit.chief_complaint}
                         </td>
                         <td className="py-3 px-4">
-                          {getStatusBadge(visit.status)}
+                          {getStatusBadge(visit.workflow_status)}
                         </td>
                         <td className="py-3 px-4 text-gray-900 font-semibold">
                           {formatCurrency(visit.consultation_fee)}
@@ -324,15 +326,10 @@ export default function VisitsPage() {
                                 <Eye size={16} />
                               </Button>
                             </Link>
-                            {visit.status === 'scheduled' && can('edit_visits') && (
-                              <Button variant="primary" size="sm" onClick={() => handleUpdateStatus(visit.id, 'in_progress')}>
-                                Start
-                              </Button>
-                            )}
-                            {visit.status === 'in_progress' && can('edit_visits') && (
-                              <Button variant="primary" size="sm" onClick={() => handleUpdateStatus(visit.id, 'completed')}>
-                                Complete
-                              </Button>
+                            {visit.workflow_status === 'scheduled' && can('create_visits') && (
+                              <Link href={`/visits/${visit.id}/review`}>
+                                <Button variant="primary" size="sm">Review</Button>
+                              </Link>
                             )}
                           </div>
                         </td>
@@ -340,6 +337,31 @@ export default function VisitsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {lastPage > 1 && (
+              <div className="flex justify-center items-center gap-2 mt-6">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-gray-600">
+                  Page {currentPage} of {lastPage}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(lastPage, p + 1))}
+                  disabled={currentPage >= lastPage}
+                >
+                  Next
+                </Button>
               </div>
             )}
           </CardContent>
@@ -356,7 +378,7 @@ export default function VisitsPage() {
                 {visits
                   .filter(v =>
                     new Date(v.visit_date).toDateString() === new Date().toDateString() &&
-                    (v.status === 'scheduled' || v.status === 'in_progress')
+                    (v.workflow_status === 'scheduled' || v.workflow_status === 'awaiting_payment' || v.workflow_status === 'paid' || v.workflow_status === 'lab_pending' || v.workflow_status === 'lab_completed' || v.workflow_status === 'pharmacy_pending')
                   )
                   .slice(0, 5)
                   .map((visit) => (
@@ -373,13 +395,13 @@ export default function VisitsPage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        {getStatusBadge(visit.status)}
+                        {getStatusBadge(visit.workflow_status)}
                       </div>
                     </div>
                   ))}
                 {visits.filter(v =>
                   new Date(v.visit_date).toDateString() === new Date().toDateString() &&
-                  (v.status === 'scheduled' || v.status === 'in_progress')
+                  (v.workflow_status === 'scheduled' || v.workflow_status === 'awaiting_payment' || v.workflow_status === 'paid' || v.workflow_status === 'lab_pending' || v.workflow_status === 'lab_completed' || v.workflow_status === 'pharmacy_pending')
                 ).length === 0 && (
                     <p className="text-gray-600 text-center py-4">No visits scheduled for today</p>
                   )}

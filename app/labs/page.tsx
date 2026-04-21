@@ -20,6 +20,7 @@ interface LabOrder {
   order_date: string;
   cost: number;
   appointment_id?: number;
+  visit_id?: number;
 }
 
 export default function LabsPage() {
@@ -35,6 +36,7 @@ function LabsPageContent() {
   const { can } = usePermission();
   const searchParams = useSearchParams();
   const appointmentId = searchParams.get('appointment_id');
+  const visitId = searchParams.get('visit_id');
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -43,6 +45,7 @@ function LabsPageContent() {
       setLoading(true);
       const params: Record<string, string> = {};
       if (appointmentId) params.appointment_id = appointmentId;
+      if (visitId) params.visit_id = visitId;
       const response = await apiClient.get<{ data?: LabOrder[] }>('/labs/orders', params);
       setLabOrders(response.data || []);
       setError('');
@@ -52,7 +55,7 @@ function LabsPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [appointmentId]);
+  }, [appointmentId, visitId]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -79,7 +82,7 @@ function LabsPageContent() {
     return (
       <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium capitalize ${styles[status]}`}>
         {icons[status]}
-        {status.replace('_', ' ')}
+        {status?.replace('_', ' ') || status}
       </span>
     );
   };

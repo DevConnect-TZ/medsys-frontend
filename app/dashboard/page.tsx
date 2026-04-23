@@ -10,7 +10,7 @@ import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
 import { usePermission } from '@/hooks/usePermission';
 import { ROLE_PERMISSIONS } from '@/lib/roles';
-import { Users, Calendar, TrendingUp, Activity, Clock, FlaskConical, Package, CreditCard, Stethoscope, Eye, BedDouble } from 'lucide-react';
+import { Users, Calendar, TrendingUp, Activity, Clock, FlaskConical, Package, CreditCard, Stethoscope, Eye, BedDouble, ClipboardList, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 
 interface DashboardStats {
@@ -23,10 +23,17 @@ interface DashboardStats {
   totalInventory?: number;
   queueVisits?: number;
   admittedPatients?: number;
+  pendingLabs?: number;
+  completedLabs?: number;
 }
 
 interface AppointmentSummary {
+  id: number;
   status: string;
+  patient_name?: string;
+  patient_id?: number;
+  appointment_date?: string;
+  appointment_time?: string;
 }
 
 interface VisitSummary {
@@ -36,6 +43,14 @@ interface VisitSummary {
   visit_date: string;
   status: string;
   chief_complaint?: string;
+}
+
+interface InvoiceSummary {
+  id: number;
+  invoice_number: string;
+  patient_name: string;
+  total: number;
+  invoice_date: string;
 }
 
 const emptyListResponse = <T,>(withData = false): ApiListResponse<T> => ({
@@ -56,6 +71,12 @@ export default function DashboardPage() {
   const [appointmentsQueue, setAppointmentsQueue] = useState<AppointmentSummary[]>([]);
   const [visitsQueue, setVisitsQueue] = useState<VisitSummary[]>([]);
   const [queueLoading, setQueueLoading] = useState(false);
+
+  // Pending payments for cashiers
+  const [pendingInvoices, setPendingInvoices] = useState<InvoiceSummary[]>([]);
+  const [pendingInvoicesLoading, setPendingInvoicesLoading] = useState(false);
+
+  // Lab orders stats are fetched into stats state for lab technicians
 
   useEffect(() => {
     // Check authentication and load user if needed
@@ -120,6 +141,25 @@ export default function DashboardPage() {
           );
         }
 
+        // Fetch pending invoices for cashiers
+        const cashierRequests = [];
+        if (user?.role === 'cashier' || can('process_payments')) {
+          cashierRequests.push(
+            apiClient.getInvoices(1, { status: 'pending', per_page: 100 }).catch(() => emptyListResponse<InvoiceSummary>(true))
+          );
+        }
+
+        // Fetch lab order stats for lab technicians
+        const labTechRequests = [];
+        if (user?.role === 'lab_technician') {
+          labTechRequests.push(
+            apiClient.getLabOrders(1, { status: 'pending', per_page: 1 }).catch(() => emptyListResponse())
+          );
+          labTechRequests.push(
+            apiClient.getLabOrders(1, { status: 'completed', per_page: 1 }).catch(() => emptyListResponse())
+          );
+        }
+
         // Admin-specific stats
         const adminRequests = [];
         if (user?.role === 'admin') {
@@ -131,10 +171,12 @@ export default function DashboardPage() {
           );
         }
 
-        const [results, queueResults, adminResults] = await Promise.all([
+        const [results, queueResults, adminResults, cashierResults, labTechResults] = await Promise.all([
           Promise.all(requests),
           Promise.all(queueRequests),
           Promise.all(adminRequests),
+          Promise.all(cashierRequests),
+          Promise.all(labTechRequests),
         ]);
         let resultsIndex = 0;
 
@@ -168,6 +210,11 @@ export default function DashboardPage() {
           newStats.admittedPatients = adminResults[1]?.meta?.total || 0;
         }
 
+        if (user?.role === 'lab_technician') {
+          newStats.pendingLabs = labTechResults[0]?.meta?.total || 0;
+          newStats.completedLabs = labTechResults[1]?.meta?.total || 0;
+        }
+
         setStats(newStats);
 
         // Set queue data
@@ -176,6 +223,12 @@ export default function DashboardPage() {
           const visitsRes = queueResults[1] as ApiListResponse<VisitSummary>;
           setAppointmentsQueue(apptsRes.data || []);
           setVisitsQueue(visitsRes.data || []);
+        }
+
+        // Set pending invoices for cashiers
+        if (user?.role === 'cashier' || can('process_payments')) {
+          const invoicesRes = cashierResults[0] as ApiListResponse<InvoiceSummary>;
+          setPendingInvoices(invoicesRes.data || []);
         }
       } catch (err) {
         console.error('Failed to load stats:', err);
@@ -231,13 +284,30 @@ export default function DashboardPage() {
     }
 
     if (can('view_labs')) {
-      cards.push({
-        title: 'Lab Orders',
-        value: stats?.totalLabs || 0,
-        icon: FlaskConical,
-        color: 'indigo',
-        href: '/labs',
-      });
+      if (user?.role === 'lab_technician') {
+        cards.push({
+          title: 'Awaiting Orders',
+          value: stats?.pendingLabs || 0,
+          icon: ClipboardList,
+          color: 'orange',
+          href: '/labs',
+        });
+        cards.push({
+          title: 'Complete Orders',
+          value: stats?.completedLabs || 0,
+          icon: CheckCircle,
+          color: 'green',
+          href: '/labs',
+        });
+      } else {
+        cards.push({
+          title: 'Lab Orders',
+          value: stats?.totalLabs || 0,
+          icon: FlaskConical,
+          color: 'indigo',
+          href: '/labs',
+        });
+      }
     }
 
     if (can('view_prescriptions')) {
@@ -416,6 +486,78 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Cashier Pending Payments */}
+        {(user?.role === 'cashier' || can('process_payments')) && (
+          <Card className="mb-6">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+                <div className="flex items-center gap-2">
+                  <CreditCard size={20} className="text-amber-600" />
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Forwarded Orders Awaiting Payment
+                  </h3>
+                  <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                    {pendingInvoices.length} pending
+                  </span>
+                </div>
+                <Link href="/payments" className="text-sm text-blue-600 hover:underline font-medium">
+                  Go to Payments →
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {pendingInvoicesLoading ? (
+                <p className="text-gray-600 text-center py-8">Loading pending payments...</p>
+              ) : pendingInvoices.length === 0 ? (
+                <p className="text-gray-600 text-center py-8">No forwarded orders awaiting payment</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Invoice #</th>
+                        <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Patient</th>
+                        <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                        <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Date</th>
+                        <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingInvoices.slice(0, 8).map((invoice) => (
+                        <tr key={invoice.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-2 px-3 text-sm font-medium text-gray-900">{invoice.invoice_number}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{invoice.patient_name}</td>
+                          <td className="py-2 px-3 text-sm font-semibold text-gray-900">
+                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'TZS' }).format(invoice.total)}
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-500">
+                            {new Date(invoice.invoice_date).toLocaleDateString()}
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            <Link href="/payments">
+                              <Button variant="primary" size="sm">
+                                <CreditCard size={14} className="mr-1" />
+                                Process
+                              </Button>
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {pendingInvoices.length > 8 && (
+                    <div className="text-center mt-4">
+                      <Link href="/payments" className="text-sm text-blue-600 hover:underline font-medium">
+                        View all {pendingInvoices.length} pending orders →
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Doctor Queue */}
         {user?.role === 'doctor' && (
           <Card className="mb-6">
@@ -451,7 +593,7 @@ export default function DashboardPage() {
                   <p className="text-gray-600 text-center py-8">No appointments in your queue</p>
                 ) : (
                   <div className="space-y-3">
-                    {appointmentsQueue.slice(0, 5).map((appt: any) => (
+                    {appointmentsQueue.slice(0, 5).map((appt: AppointmentSummary) => (
                       <div key={appt.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
                         <div>
                           <p className="font-medium text-gray-900">{appt.patient_name || `Patient #${appt.patient_id}`}</p>

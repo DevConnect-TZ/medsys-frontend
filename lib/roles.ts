@@ -37,9 +37,7 @@ export const ROLE_PERMISSIONS: Record<string, {
       'edit_patients',
       'view_appointments',
       'view_visits',
-      'create_visits',
       'manage_admissions',
-      'edit_visits',
       'view_labs',
       'create_lab_orders',
       'manage_admissions',
@@ -107,7 +105,7 @@ export const ROLE_PERMISSIONS: Record<string, {
       'edit_lab_results',
       'view_medical_tests',
     ],
-    menuItems: ['dashboard', 'labs'],
+    menuItems: ['dashboard', 'labs', 'settings'],
   },
   pharmacist: {
     label: 'Pharmacist',

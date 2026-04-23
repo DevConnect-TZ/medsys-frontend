@@ -17,7 +17,8 @@ import {
   BedDouble,
   ChevronLeft,
   ChevronRight,
-  X
+  X,
+  CreditCard
 } from 'lucide-react';
 import clsx from 'clsx';
 import { usePermission } from '@/hooks/usePermission';
@@ -73,6 +74,7 @@ export function Sidebar() {
     { label: 'Prescriptions', href: '/prescriptions', icon: Package, permission: 'view_prescriptions' },
     { label: 'Inventory', href: '/pharmacy/inventory', icon: Package, permission: 'view_inventory' },
     { label: 'Invoices', href: '/invoices', icon: FileText, permission: 'view_invoices' },
+    { label: 'Payments', href: '/payments', icon: CreditCard, permission: 'view_payments' },
     { label: 'Users', href: '/users', icon: Users, permission: 'view_users' },
     { label: 'Settings', href: '/settings', icon: Settings, permission: null },
   ];

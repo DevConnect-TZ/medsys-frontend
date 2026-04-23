@@ -13,7 +13,7 @@ import { Settings, User, Lock, Bell, FlaskConical, CalendarDays, Building2 } fro
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -294,9 +294,14 @@ export default function SettingsPage() {
     setSuccess('');
 
     try {
-      // API call to update profile
-      // await apiClient.updateProfile(profileData);
-      setSuccess('Profile updated successfully');
+      const response = await apiClient.updateProfile<{ success: boolean; user: typeof user; message?: string }>({
+        name: profileData.name,
+        phone: profileData.phone,
+      });
+      if (response.user) {
+        setUser(response.user);
+      }
+      setSuccess(response.message || 'Profile updated successfully');
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Failed to update profile'));
     } finally {
@@ -317,9 +322,12 @@ export default function SettingsPage() {
     }
 
     try {
-      // API call to change password
-      // await apiClient.changePassword(passwordData);
-      setSuccess('Password changed successfully');
+      const response = await apiClient.changePassword<{ success: boolean; message?: string }>({
+        current_password: passwordData.current_password,
+        new_password: passwordData.new_password,
+        new_password_confirmation: passwordData.confirm_password,
+      });
+      setSuccess(response.message || 'Password changed successfully');
       setPasswordData({
         current_password: '',
         new_password: '',
@@ -437,10 +445,8 @@ export default function SettingsPage() {
                       label="Email Address"
                       type="email"
                       value={profileData.email}
-                      onChange={(e) =>
-                        setProfileData({ ...profileData, email: e.target.value })
-                      }
-                      required
+                      disabled
+                      className="bg-gray-100 cursor-not-allowed"
                     />
                     <Input
                       label="Phone Number"

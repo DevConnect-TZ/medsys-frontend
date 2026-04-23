@@ -241,13 +241,17 @@ export default function InvoicesPage() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm">
-                              View
-                            </Button>
-                            {invoice.status === 'pending' && can('process_payments') && (
-                              <Button variant="primary" size="sm">
-                                Mark Paid
+                            <Link href={`/invoices/${invoice.id}`}>
+                              <Button variant="outline" size="sm">
+                                View
                               </Button>
+                            </Link>
+                            {invoice.status === 'pending' && can('process_payments') && (
+                              <Link href="/payments">
+                                <Button variant="primary" size="sm">
+                                  Mark Paid
+                                </Button>
+                              </Link>
                             )}
                           </div>
                         </td>

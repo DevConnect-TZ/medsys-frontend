@@ -130,6 +130,14 @@ class ApiClient {
     return response.data;
   }
 
+  async updateProfile<T>(data: ApiPayload): Promise<T> {
+    return this.put<T>('/auth/me', data);
+  }
+
+  async changePassword<T>(data: ApiPayload): Promise<T> {
+    return this.post<T>('/auth/change-password', data);
+  }
+
   // Generic CRUD methods
   async get<T>(endpoint: string, params?: ApiParams): Promise<T> {
     const response = await this.api.get<T>(endpoint, { params });
@@ -305,8 +313,8 @@ class ApiClient {
   }
 
   // Lab Orders
-  async getLabOrders<T>(page = 1): Promise<ApiListResponse<T>> {
-    return this.get<ApiListResponse<T>>('/labs/orders', { page });
+  async getLabOrders<T>(page = 1, params?: ApiParams): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/labs/orders', { page, ...params });
   }
 
   async createLabOrder<T>(data: ApiPayload): Promise<T> {
@@ -336,8 +344,8 @@ class ApiClient {
   }
 
   // Invoices
-  async getInvoices<T>(page = 1): Promise<ApiListResponse<T>> {
-    return this.get<ApiListResponse<T>>('/billing/invoices', { page });
+  async getInvoices<T>(page = 1, params?: ApiParams): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/billing/invoices', { page, ...params });
   }
 
   async getInvoice<T>(id: number): Promise<ApiResourceResponse<T, 'invoice'>> {
@@ -404,16 +412,32 @@ class ApiClient {
   }
 
   // Users
-  async getUsers<T>(page = 1): Promise<ApiListResponse<T>> {
-    return this.get<ApiListResponse<T>>('/users', { page });
+  async getUsers<T>(page = 1, params?: ApiParams): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/users', { page, ...params });
+  }
+
+  async getUser<T>(id: number): Promise<ApiResourceResponse<T, 'user'>> {
+    return this.get<ApiResourceResponse<T, 'user'>>(`/users/${id}`);
+  }
+
+  async updateUser<T>(id: number, data: ApiPayload): Promise<T> {
+    return this.put(`/users/${id}`, data);
+  }
+
+  async deleteUser(id: number) {
+    return this.delete(`/users/${id}`);
+  }
+
+  async getInvitations<T>(page = 1, params?: ApiParams): Promise<ApiListResponse<T>> {
+    return this.get<ApiListResponse<T>>('/invitations', { page, ...params });
   }
 
   async inviteUser<T>(data: ApiPayload): Promise<T> {
     return this.post('/invitations', data);
   }
 
-  async acceptInvitation<T>(data: ApiPayload): Promise<T> {
-    return this.post('/users/accept-invitation', data);
+  async acceptInvitation<T>(token: string, data: ApiPayload): Promise<T> {
+    return this.post(`/invitations/${token}/accept`, data);
   }
 }
 

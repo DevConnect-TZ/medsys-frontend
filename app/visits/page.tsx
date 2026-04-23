@@ -38,7 +38,7 @@ interface Visit {
 
 export default function VisitsPage() {
   const router = useRouter();
-  const { can } = usePermission();
+  const { can, user } = usePermission();
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -326,7 +326,7 @@ export default function VisitsPage() {
                                 <Eye size={16} />
                               </Button>
                             </Link>
-                            {visit.workflow_status === 'scheduled' && can('create_visits') && (
+                            {visit.workflow_status === 'scheduled' && user?.role === 'doctor' && (
                               <Link href={`/visits/${visit.id}/review`}>
                                 <Button variant="primary" size="sm">Review</Button>
                               </Link>

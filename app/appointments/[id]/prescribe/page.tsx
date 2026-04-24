@@ -250,7 +250,7 @@ export default function PrescribePage() {
               <Button variant="secondary" type="button">Cancel</Button>
             </Link>
             <Button type="submit" variant="primary" isLoading={loading}>
-              Forward to Pharmacy
+              Forward to Cashier
             </Button>
           </div>
         </form>

@@ -31,7 +31,7 @@ interface Visit {
   prescriptions?: { id: number; medication_name: string; dosage: string; quantity: number; status: string }[];
 }
 
-const workflowSteps = ['scheduled', 'awaiting_payment', 'paid', 'lab_pending', 'lab_completed', 'pharmacy_pending', 'completed'];
+const workflowSteps = ['scheduled', 'awaiting_payment', 'paid', 'lab_pending', 'lab_completed', 'pharmacy_awaiting_payment', 'pharmacy_pending', 'completed'];
 
 export default function VisitDetailPage() {
   const router = useRouter();
@@ -134,6 +134,19 @@ export default function VisitDetailPage() {
     }
   };
 
+  const handleConfirmPharmacyPayment = async () => {
+    if (!visit) return;
+    setActionLoading(true);
+    try {
+      await apiClient.confirmPharmacyPaymentVisit(visit.id);
+      fetchVisit();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to confirm payment'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleDispense = async () => {
     if (!visit) return;
     setActionLoading(true);
@@ -155,6 +168,7 @@ export default function VisitDetailPage() {
       paid: 'bg-purple-100 text-purple-800',
       lab_pending: 'bg-indigo-100 text-indigo-800',
       lab_completed: 'bg-teal-100 text-teal-800',
+      pharmacy_awaiting_payment: 'bg-orange-100 text-orange-800',
       pharmacy_pending: 'bg-pink-100 text-pink-800',
       completed: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800',
@@ -256,6 +270,12 @@ export default function VisitDetailPage() {
                   View Lab Orders
                 </Button>
               </Link>
+            )}
+            {visit.workflow_status === 'pharmacy_awaiting_payment' && role === 'cashier' && (
+              <Button variant="primary" isLoading={actionLoading} onClick={handleConfirmPharmacyPayment}>
+                <CreditCard size={18} className="mr-2" />
+                Confirm Rx Payment
+              </Button>
             )}
             {visit.workflow_status === 'pharmacy_pending' && role === 'pharmacist' && (
               <Button variant="primary" isLoading={actionLoading} onClick={handleDispense}>

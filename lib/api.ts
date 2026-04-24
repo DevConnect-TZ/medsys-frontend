@@ -220,6 +220,10 @@ class ApiClient {
     return this.post(`/appointments/${id}/mark-paid`, {});
   }
 
+  async confirmPharmacyPaymentAppointment(id: number) {
+    return this.post(`/appointments/${id}/confirm-pharmacy-payment`, {});
+  }
+
   async prescribeAppointment<T>(id: number, data: ApiPayload): Promise<T> {
     return this.post(`/appointments/${id}/prescribe`, data);
   }
@@ -235,6 +239,10 @@ class ApiClient {
 
   async markVisitPaid(id: number) {
     return this.post(`/visits/${id}/mark-paid`, {});
+  }
+
+  async confirmPharmacyPaymentVisit(id: number) {
+    return this.post(`/visits/${id}/confirm-pharmacy-payment`, {});
   }
 
   async prescribeVisit<T>(id: number, data: ApiPayload): Promise<T> {

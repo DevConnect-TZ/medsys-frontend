@@ -32,6 +32,7 @@ const workflowLabels: Record<string, string> = {
   paid: 'Paid - Awaiting Lab',
   lab_pending: 'Lab In Progress',
   lab_completed: 'Lab Completed',
+  pharmacy_awaiting_payment: 'Awaiting Rx Payment',
   pharmacy_pending: 'Pharmacy Pending',
   completed: 'Completed',
   cancelled: 'Cancelled',
@@ -100,6 +101,16 @@ export default function AppointmentsPage() {
     }
   };
 
+  const handleConfirmPharmacyPayment = async (id: number) => {
+    if (!confirm('Confirm prescription payment received?')) return;
+    try {
+      await apiClient.confirmPharmacyPaymentAppointment(id);
+      setAppointments(appointments.map((a) => (a.id === id ? { ...a, workflow_status: 'pharmacy_pending' } : a)));
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to confirm payment'));
+    }
+  };
+
   const handleDispense = async (id: number) => {
     if (!confirm('Confirm medicines dispensed?')) return;
     try {
@@ -117,6 +128,7 @@ export default function AppointmentsPage() {
       paid: 'bg-purple-100 text-purple-800',
       lab_pending: 'bg-indigo-100 text-indigo-800',
       lab_completed: 'bg-teal-100 text-teal-800',
+      pharmacy_awaiting_payment: 'bg-orange-100 text-orange-800',
       pharmacy_pending: 'bg-pink-100 text-pink-800',
       completed: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800',
@@ -147,6 +159,15 @@ export default function AppointmentsPage() {
         <Button key="pay" variant="primary" size="sm" onClick={() => handleMarkPaid(appt.id)}>
           <CreditCard size={16} className="mr-1" />
           Mark Paid
+        </Button>
+      );
+    }
+
+    if (appt.workflow_status === 'pharmacy_awaiting_payment' && role === 'cashier') {
+      buttons.push(
+        <Button key="rxpay" variant="primary" size="sm" onClick={() => handleConfirmPharmacyPayment(appt.id)}>
+          <CreditCard size={16} className="mr-1" />
+          Confirm Rx Payment
         </Button>
       );
     }

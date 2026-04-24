@@ -47,7 +47,7 @@ export const ROLE_PERMISSIONS: Record<string, {
       'edit_prescriptions',
       'view_medical_tests',
     ],
-    menuItems: ['dashboard', 'patients', 'appointments', 'visits', 'admissions', 'labs'],
+    menuItems: ['dashboard', 'patients', 'appointments', 'visits', 'admissions', 'labs', 'settings'],
   },
   receptionist: {
     label: 'Receptionist',
@@ -67,7 +67,7 @@ export const ROLE_PERMISSIONS: Record<string, {
       'manage_admissions',
       'view_medical_tests',
     ],
-    menuItems: ['dashboard', 'patients', 'appointments', 'visits', 'admissions', 'invoices'],
+    menuItems: ['dashboard', 'patients', 'appointments', 'visits', 'admissions', 'invoices', 'settings'],
   },
   nurse: {
     label: 'Nurse',
@@ -92,7 +92,7 @@ export const ROLE_PERMISSIONS: Record<string, {
       'process_payments',
       'view_medical_tests',
     ],
-    menuItems: ['dashboard', 'invoices', 'payments'],
+    menuItems: ['dashboard', 'invoices', 'payments', 'settings'],
   },
   lab_technician: {
     label: 'Lab Technician',
@@ -117,7 +117,7 @@ export const ROLE_PERMISSIONS: Record<string, {
       'manage_inventory',
       'view_medical_tests',
     ],
-    menuItems: ['dashboard', 'prescriptions', 'inventory'],
+    menuItems: ['dashboard', 'prescriptions', 'inventory', 'settings'],
   },
 };
 

@@ -80,6 +80,7 @@ export default function VisitsPage() {
       paid: 'bg-purple-100 text-purple-800',
       lab_pending: 'bg-indigo-100 text-indigo-800',
       lab_completed: 'bg-teal-100 text-teal-800',
+      pharmacy_awaiting_payment: 'bg-orange-100 text-orange-800',
       pharmacy_pending: 'bg-pink-100 text-pink-800',
       completed: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800',
@@ -113,6 +114,7 @@ export default function VisitsPage() {
     return {
       scheduled: visits.filter(v => v.workflow_status === 'scheduled').length,
       awaiting_payment: visits.filter(v => v.workflow_status === 'awaiting_payment').length,
+      pharmacy_awaiting_payment: visits.filter(v => v.workflow_status === 'pharmacy_awaiting_payment').length,
       pharmacy_pending: visits.filter(v => v.workflow_status === 'pharmacy_pending').length,
       completed: visits.filter(v => v.workflow_status === 'completed').length,
       total: visits.length,
@@ -227,7 +229,7 @@ export default function VisitsPage() {
         <div className="mb-6">
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-6">
-              {['all', 'scheduled', 'awaiting_payment', 'paid', 'lab_pending', 'lab_completed', 'pharmacy_pending', 'completed'].map((status) => (
+              {['all', 'scheduled', 'awaiting_payment', 'paid', 'lab_pending', 'lab_completed', 'pharmacy_awaiting_payment', 'pharmacy_pending', 'completed'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setFilterStatus(status)}
@@ -378,7 +380,7 @@ export default function VisitsPage() {
                 {visits
                   .filter(v =>
                     new Date(v.visit_date).toDateString() === new Date().toDateString() &&
-                    (v.workflow_status === 'scheduled' || v.workflow_status === 'awaiting_payment' || v.workflow_status === 'paid' || v.workflow_status === 'lab_pending' || v.workflow_status === 'lab_completed' || v.workflow_status === 'pharmacy_pending')
+                    (v.workflow_status === 'scheduled' || v.workflow_status === 'awaiting_payment' || v.workflow_status === 'paid' || v.workflow_status === 'lab_pending' || v.workflow_status === 'lab_completed' || v.workflow_status === 'pharmacy_awaiting_payment' || v.workflow_status === 'pharmacy_pending')
                   )
                   .slice(0, 5)
                   .map((visit) => (

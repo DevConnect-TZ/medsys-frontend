@@ -65,7 +65,7 @@ export function Sidebar() {
   };
 
   const allMenuItems = [
-    { label: 'Dashboard', href: '/dashboard', icon: Home, permission: 'view_patients' },
+    { label: 'Dashboard', href: '/dashboard', icon: Home, permission: null },
     { label: 'Patients', href: '/patients', icon: Users, permission: 'view_patients' },
     { label: 'Appointments', href: '/appointments', icon: Calendar, permission: 'view_appointments' },
     { label: 'Visits', href: '/visits', icon: Stethoscope, permission: 'view_visits' },

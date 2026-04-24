@@ -7,25 +7,30 @@ import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Alert } from '@/components/Alert';
-import { Package, Plus, Eye, CheckCircle, Clock, Pill } from 'lucide-react';
+import { Package, Eye, CheckCircle, Clock, Pill } from 'lucide-react';
+
+interface Medication {
+  name: string;
+  dosage?: string;
+  frequency?: string;
+  duration?: string;
+  quantity?: number;
+  instructions?: string;
+}
 
 interface Prescription {
   id: number;
-  prescription_number: string;
   patient_id: number;
   patient_name: string;
+  doctor_id: number;
   doctor_name: string;
-  medication_name: string;
-  dosage: string;
-  frequency: string;
-  duration: string;
-  quantity: number;
+  visit_id?: number;
+  medications: Medication[];
   status: 'pending' | 'dispensed' | 'cancelled';
-  prescribed_date: string;
-  dispensed_date?: string;
-  instructions?: string;
-  refills_allowed: number;
-  refills_remaining: number;
+  prescription_date: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export default function PrescriptionsPage() {
@@ -60,21 +65,21 @@ export default function PrescriptionsPage() {
   };
 
   const getStatusBadge = (status: string) => {
-    const styles = {
+    const styles: Record<string, string> = {
       pending: 'bg-yellow-100 text-yellow-800',
       dispensed: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800',
     };
 
-    const icons = {
+    const icons: Record<string, React.ReactNode> = {
       pending: <Clock size={14} />,
       dispensed: <CheckCircle size={14} />,
       cancelled: <Package size={14} />,
     };
 
     return (
-      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium capitalize ${styles[status as keyof typeof styles]}`}>
-        {icons[status as keyof typeof icons]}
+      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium capitalize ${styles[status] || 'bg-gray-100 text-gray-800'}`}>
+        {icons[status]}
         {status}
       </span>
     );
@@ -98,6 +103,17 @@ export default function PrescriptionsPage() {
 
   const statusCounts = getStatusCounts();
 
+  const formatMedications = (medications: Medication[]) => {
+    if (!medications || medications.length === 0) return '—';
+    return medications.map(m => m.name).join(', ');
+  };
+
+  const formatDosage = (medications: Medication[]) => {
+    if (!medications || medications.length === 0) return '—';
+    const first = medications[0];
+    return `${first.dosage || ''} ${first.frequency || ''}`.trim() || '—';
+  };
+
   return (
     <Layout>
       <main className="max-w-7xl mx-auto p-6">
@@ -110,10 +126,6 @@ export default function PrescriptionsPage() {
             </h1>
             <p className="text-gray-600 mt-2">Manage patient prescriptions and medications</p>
           </div>
-          <Button variant="primary" className="flex items-center gap-2">
-            <Plus size={20} />
-            New Prescription
-          </Button>
         </div>
 
         {/* Error Alert */}
@@ -191,33 +203,14 @@ export default function PrescriptionsPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-200">
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                        Rx #
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                        Patient
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                        Medication
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                        Dosage
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                        Frequency
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                        Status
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                        Prescribed Date
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                        Doctor
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                        Actions
-                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">ID</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Patient</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Medications</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Dosage / Frequency</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Doctor</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -227,25 +220,22 @@ export default function PrescriptionsPage() {
                         className="border-b border-gray-200 hover:bg-gray-50"
                       >
                         <td className="py-3 px-4 text-gray-900 font-medium">
-                          {prescription.prescription_number}
+                          #{prescription.id}
                         </td>
                         <td className="py-3 px-4 text-gray-900">
                           {prescription.patient_name}
                         </td>
                         <td className="py-3 px-4 text-gray-900 font-semibold">
-                          {prescription.medication_name}
+                          {formatMedications(prescription.medications)}
                         </td>
                         <td className="py-3 px-4 text-gray-600">
-                          {prescription.dosage}
-                        </td>
-                        <td className="py-3 px-4 text-gray-600">
-                          {prescription.frequency}
+                          {formatDosage(prescription.medications)}
                         </td>
                         <td className="py-3 px-4">
                           {getStatusBadge(prescription.status)}
                         </td>
                         <td className="py-3 px-4 text-gray-600">
-                          {formatDate(prescription.prescribed_date)}
+                          {formatDate(prescription.prescription_date)}
                         </td>
                         <td className="py-3 px-4 text-gray-600">
                           {prescription.doctor_name}
@@ -285,64 +275,6 @@ export default function PrescriptionsPage() {
             )}
           </CardContent>
         </Card>
-
-        {/* Prescription Details Section */}
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {prescriptions.slice(0, 5).map((rx) => (
-                  <div key={rx.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <Pill size={20} className="text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{rx.medication_name}</p>
-                        <p className="text-sm text-gray-600">{rx.patient_name}</p>
-                      </div>
-                    </div>
-                    {getStatusBadge(rx.status)}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Stats</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-gray-600">Pending Refills</span>
-                  <span className="font-semibold text-gray-900">
-                    {prescriptions.filter(rx => rx.refills_remaining > 0).length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-gray-600">Dispensed Today</span>
-                  <span className="font-semibold text-gray-900">
-                    {prescriptions.filter(rx => 
-                      rx.dispensed_date && 
-                      new Date(rx.dispensed_date).toDateString() === new Date().toDateString()
-                    ).length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-gray-600">Awaiting Pickup</span>
-                  <span className="font-semibold text-gray-900">
-                    {prescriptions.filter(rx => rx.status === 'dispensed').length}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </main>
     </Layout>
   );

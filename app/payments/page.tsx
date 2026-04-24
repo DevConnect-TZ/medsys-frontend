@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient, getErrorMessage } from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Alert } from '@/components/Alert';
+import { InvoiceReceiptModal } from '@/components/InvoiceReceiptModal';
 import { CreditCard, DollarSign, Clock, CheckCircle, FileText, X } from 'lucide-react';
 
 interface Invoice {
@@ -27,6 +29,7 @@ interface Invoice {
 
 export default function PaymentsPage() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,17 +42,9 @@ export default function PaymentsPage() {
   const [amountPaid, setAmountPaid] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [processing, setProcessing] = useState(false);
+  const [receiptInvoice, setReceiptInvoice] = useState<Invoice | null>(null);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    fetchInvoices();
-  }, [router, activeTab]);
-
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiClient.getInvoices<Invoice>(1, { status: activeTab, per_page: 100 });
@@ -61,7 +56,16 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+    fetchInvoices();
+  }, [fetchInvoices, router]);
 
   const openPaymentModal = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
@@ -76,12 +80,21 @@ export default function PaymentsPage() {
     if (!selectedInvoice) return;
     setProcessing(true);
     try {
-      await apiClient.payInvoice(selectedInvoice.id, {
+      const response = await apiClient.payInvoice<{ invoice?: Invoice; data?: Invoice }>(selectedInvoice.id, {
         payment_method: paymentMethod,
         amount_paid: Number(amountPaid),
         payment_date: paymentDate,
       });
+      const paidInvoice = response.invoice || response.data || {
+        ...selectedInvoice,
+        status: 'paid',
+        payment_method: paymentMethod,
+        amount_paid: Number(amountPaid),
+        payment_date: paymentDate,
+      };
       setShowModal(false);
+      setSelectedInvoice(null);
+      setReceiptInvoice(paidInvoice);
       fetchInvoices();
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Failed to process payment'));
@@ -266,11 +279,16 @@ export default function PaymentsPage() {
                               Process
                             </Button>
                           ) : (
-                            <Link href={`/invoices/${invoice.id}`}>
-                              <Button variant="outline" size="sm">
-                                View
+                            <div className="flex gap-2">
+                              <Link href={`/invoices/${invoice.id}`}>
+                                <Button variant="outline" size="sm">
+                                  View
+                                </Button>
+                              </Link>
+                              <Button variant="secondary" size="sm" onClick={() => setReceiptInvoice(invoice)}>
+                                Receipt
                               </Button>
-                            </Link>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -346,6 +364,14 @@ export default function PaymentsPage() {
               </form>
             </div>
           </div>
+        )}
+
+        {receiptInvoice && (
+          <InvoiceReceiptModal
+            invoice={receiptInvoice}
+            cashierName={user?.name}
+            onClose={() => setReceiptInvoice(null)}
+          />
         )}
       </main>
     </Layout>

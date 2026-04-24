@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Alert } from '@/components/Alert';
-import { ArrowLeft, FileText, CheckCircle, Clock, CreditCard, X } from 'lucide-react';
+import { InvoiceReceiptModal } from '@/components/InvoiceReceiptModal';
+import { ArrowLeft, FileText, CheckCircle, Clock, CreditCard, ReceiptText, X } from 'lucide-react';
 import Link from 'next/link';
 
 interface InvoiceItem {
@@ -39,6 +40,48 @@ interface Invoice {
   paid_at?: string;
 }
 
+function normalizeInvoiceItem(item: unknown): InvoiceItem | null {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+
+  const candidate = item as Record<string, unknown>;
+
+  return {
+    description: String(candidate.description || ''),
+    quantity: Number(candidate.quantity || 0),
+    unit_price: Number(candidate.unit_price || 0),
+    total: Number(candidate.total || 0),
+  };
+}
+
+function normalizeInvoice(raw: Invoice): Invoice {
+  const rawItems = Array.isArray(raw.items)
+    ? raw.items
+    : typeof raw.items === 'string'
+      ? (() => {
+          try {
+            const parsed = JSON.parse(raw.items);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+
+  return {
+    ...raw,
+    items: rawItems
+      .map(normalizeInvoiceItem)
+      .filter((item): item is InvoiceItem => item !== null),
+    subtotal: Number(raw.subtotal || 0),
+    tax: Number(raw.tax || 0),
+    discount: Number(raw.discount || 0),
+    total: Number(raw.total || 0),
+    amount_paid: raw.amount_paid !== undefined ? Number(raw.amount_paid) : undefined,
+  };
+}
+
 export default function InvoiceDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -55,6 +98,7 @@ export default function InvoiceDetailPage() {
   const [amountPaid, setAmountPaid] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [processing, setProcessing] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
 
   const fetchInvoice = useCallback(async () => {
     try {
@@ -64,8 +108,9 @@ export default function InvoiceDetailPage() {
       if (!data) {
         throw new Error('Invoice not found');
       }
-      setInvoice(data);
-      setAmountPaid(String(data.total));
+      const normalizedInvoice = normalizeInvoice(data);
+      setInvoice(normalizedInvoice);
+      setAmountPaid(String(normalizedInvoice.total));
       setError('');
     } catch (err) {
       setError('Failed to load invoice');
@@ -91,12 +136,21 @@ export default function InvoiceDetailPage() {
     if (!invoice) return;
     setProcessing(true);
     try {
-      await apiClient.payInvoice(invoice.id, {
+      const response = await apiClient.payInvoice<{ invoice?: Invoice; data?: Invoice }>(invoice.id, {
+        payment_method: paymentMethod,
+        amount_paid: Number(amountPaid),
+        payment_date: paymentDate,
+      });
+      const paidInvoice = normalizeInvoice(response.invoice || response.data || {
+        ...invoice,
+        status: 'paid',
         payment_method: paymentMethod,
         amount_paid: Number(amountPaid),
         payment_date: paymentDate,
       });
       setShowModal(false);
+      setInvoice(paidInvoice);
+      setShowReceipt(true);
       fetchInvoice();
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Failed to process payment'));
@@ -191,6 +245,12 @@ export default function InvoiceDetailPage() {
               <Button variant="primary" onClick={() => setShowModal(true)}>
                 <CreditCard size={18} className="mr-2" />
                 Process Payment
+              </Button>
+            )}
+            {invoice.status === 'paid' && (
+              <Button variant="outline" onClick={() => setShowReceipt(true)}>
+                <ReceiptText size={18} className="mr-2" />
+                Receipt
               </Button>
             )}
           </div>
@@ -362,6 +422,14 @@ export default function InvoiceDetailPage() {
               </form>
             </div>
           </div>
+        )}
+
+        {showReceipt && (
+          <InvoiceReceiptModal
+            invoice={invoice}
+            cashierName={user?.name}
+            onClose={() => setShowReceipt(false)}
+          />
         )}
       </main>
     </Layout>

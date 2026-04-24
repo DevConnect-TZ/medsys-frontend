@@ -6,7 +6,6 @@ import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
-import { Input } from '@/components/Input';
 import { Alert } from '@/components/Alert';
 import { ArrowLeft, FlaskConical } from 'lucide-react';
 import Link from 'next/link';
@@ -30,7 +29,6 @@ export default function LabResultPage() {
 
   const [resultData, setResultData] = useState({
     results: '',
-    result_file_url: '',
     result_date: new Date().toISOString().split('T')[0],
     notes: '',
   });
@@ -62,7 +60,6 @@ export default function LabResultPage() {
       await apiClient.post('/labs/results', {
         lab_order_id: Number(id),
         results: resultData.results || null,
-        result_file_url: resultData.result_file_url || null,
         result_date: resultData.result_date,
         notes: resultData.notes || null,
       });
@@ -115,19 +112,16 @@ export default function LabResultPage() {
                   placeholder="Enter test results..."
                 />
               </div>
-              <Input
-                label="Result File URL (optional)"
-                value={resultData.result_file_url}
-                onChange={(e) => setResultData({ ...resultData, result_file_url: e.target.value })}
-                placeholder="https://..."
-              />
-              <Input
-                label="Result Date"
-                type="date"
-                value={resultData.result_date}
-                onChange={(e) => setResultData({ ...resultData, result_date: e.target.value })}
-                required
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Result Date</label>
+                <input
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  type="date"
+                  value={resultData.result_date}
+                  onChange={(e) => setResultData({ ...resultData, result_date: e.target.value })}
+                  required
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                 <textarea

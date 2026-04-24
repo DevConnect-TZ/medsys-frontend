@@ -209,7 +209,7 @@ class ApiClient {
   }
 
   async cancelAppointment(id: number) {
-    return this.put(`/appointments/${id}/cancel`, {});
+    return this.patch(`/appointments/${id}/cancel`, {});
   }
 
   async doctorReviewAppointment<T>(id: number, data: ApiPayload): Promise<T> {

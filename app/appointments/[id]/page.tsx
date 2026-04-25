@@ -80,7 +80,7 @@ const workflowSteps = [
   { key: 'awaiting_payment', label: 'Payment', icon: CreditCard },
   { key: 'paid', label: 'Lab Pending', icon: FlaskConical },
   { key: 'lab_completed', label: 'Lab Done', icon: CheckCircle },
-  { key: 'pharmacy_awaiting_payment', label: 'Rx Payment', icon: CreditCard },
+  { key: 'pharmacy_awaiting_payment', label: 'Cashier Payment', icon: CreditCard },
   { key: 'pharmacy_pending', label: 'Pharmacy', icon: Pill },
   { key: 'completed', label: 'Completed', icon: CheckCircle },
 ];
@@ -154,17 +154,6 @@ export default function AppointmentDetailPage() {
       fetchAppointment();
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Failed to mark as paid'));
-    }
-  };
-
-  const handleConfirmPharmacyPayment = async () => {
-    if (!appointment) return;
-    if (!confirm('Confirm prescription payment received?')) return;
-    try {
-      await apiClient.confirmPharmacyPaymentAppointment(appointment.id);
-      fetchAppointment();
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, 'Failed to confirm payment'));
     }
   };
 
@@ -415,12 +404,6 @@ export default function AppointmentDetailPage() {
                   Prescribe
                 </Button>
               </Link>
-            )}
-            {appointment.workflow_status === 'pharmacy_awaiting_payment' && role === 'cashier' && (
-              <Button variant="primary" onClick={handleConfirmPharmacyPayment}>
-                <CreditCard size={18} className="mr-2" />
-                Confirm Rx Payment
-              </Button>
             )}
             {appointment.workflow_status === 'pharmacy_pending' && role === 'pharmacist' && (
               <Button variant="primary" onClick={handleDispense}>

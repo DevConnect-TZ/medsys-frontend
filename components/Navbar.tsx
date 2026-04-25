@@ -4,7 +4,7 @@ import { useAuthStore } from '@/lib/store';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Menu, LogOut, Home, Users, Calendar, FileText, Settings, Stethoscope, FlaskConical, Package } from 'lucide-react';
+import { Menu, LogOut, Home, Users, Calendar, FileText, Settings, Stethoscope, FlaskConical, Package, CreditCard } from 'lucide-react';
 import { useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 
@@ -27,7 +27,9 @@ export function Navbar() {
     { label: 'Visits', href: '/visits', icon: Stethoscope, permission: 'view_visits' },
     { label: 'Labs', href: '/labs', icon: FlaskConical, permission: 'view_labs' },
     { label: 'Prescriptions', href: '/prescriptions', icon: Package, permission: 'view_prescriptions' },
+    { label: 'Inventory', href: '/pharmacy/inventory', icon: Package, permission: 'view_inventory' },
     { label: 'Invoices', href: '/invoices', icon: FileText, permission: 'view_invoices' },
+    { label: 'Payments', href: '/payments', icon: CreditCard, permission: 'view_payments' },
     { label: 'Users', href: '/users', icon: Users, permission: 'view_users' },
     { label: 'Settings', href: '/settings', icon: Settings, permission: null },
   ];

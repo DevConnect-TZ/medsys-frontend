@@ -115,9 +115,12 @@ export const ROLE_PERMISSIONS: Record<string, {
       'edit_prescriptions',
       'view_inventory',
       'manage_inventory',
+      'view_invoices',
+      'edit_invoices',
+      'view_payments',
       'view_medical_tests',
     ],
-    menuItems: ['dashboard', 'prescriptions', 'inventory', 'settings'],
+    menuItems: ['dashboard', 'prescriptions', 'inventory', 'invoices', 'payments', 'settings'],
   },
 };
 

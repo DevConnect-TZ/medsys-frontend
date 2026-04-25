@@ -364,6 +364,10 @@ class ApiClient {
     return this.post('/billing/invoices', data);
   }
 
+  async updateInvoice<T>(id: number, data: ApiPayload): Promise<T> {
+    return this.put(`/billing/invoices/${id}`, data);
+  }
+
   async payInvoice<T>(id: number, paymentData: ApiPayload): Promise<T> {
     return this.patch(`/billing/invoices/${id}/pay`, paymentData);
   }

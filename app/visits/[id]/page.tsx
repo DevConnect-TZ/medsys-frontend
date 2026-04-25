@@ -134,19 +134,6 @@ export default function VisitDetailPage() {
     }
   };
 
-  const handleConfirmPharmacyPayment = async () => {
-    if (!visit) return;
-    setActionLoading(true);
-    try {
-      await apiClient.confirmPharmacyPaymentVisit(visit.id);
-      fetchVisit();
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, 'Failed to confirm payment'));
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handleDispense = async () => {
     if (!visit) return;
     setActionLoading(true);
@@ -270,12 +257,6 @@ export default function VisitDetailPage() {
                   View Lab Orders
                 </Button>
               </Link>
-            )}
-            {visit.workflow_status === 'pharmacy_awaiting_payment' && role === 'cashier' && (
-              <Button variant="primary" isLoading={actionLoading} onClick={handleConfirmPharmacyPayment}>
-                <CreditCard size={18} className="mr-2" />
-                Confirm Rx Payment
-              </Button>
             )}
             {visit.workflow_status === 'pharmacy_pending' && role === 'pharmacist' && (
               <Button variant="primary" isLoading={actionLoading} onClick={handleDispense}>

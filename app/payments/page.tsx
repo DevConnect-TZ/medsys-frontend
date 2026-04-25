@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient, getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
+import { usePermission } from '@/hooks/usePermission';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -30,6 +31,7 @@ interface Invoice {
 export default function PaymentsPage() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { can } = usePermission();
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +45,7 @@ export default function PaymentsPage() {
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [processing, setProcessing] = useState(false);
   const [receiptInvoice, setReceiptInvoice] = useState<Invoice | null>(null);
+  const canProcessPayments = can('process_payments');
 
   const fetchInvoices = useCallback(async () => {
     try {
@@ -274,7 +277,7 @@ export default function PaymentsPage() {
                           </>
                         )}
                         <td className="py-3 px-4">
-                          {activeTab === 'pending' ? (
+                          {activeTab === 'pending' && canProcessPayments ? (
                             <Button variant="primary" size="sm" onClick={() => openPaymentModal(invoice)}>
                               <CreditCard size={14} className="mr-1" />
                               Process
@@ -283,12 +286,14 @@ export default function PaymentsPage() {
                             <div className="flex gap-2">
                               <Link href={`/invoices/${invoice.id}`}>
                                 <Button variant="outline" size="sm">
-                                  View
+                                  {activeTab === 'pending' ? 'Review' : 'View'}
                                 </Button>
                               </Link>
-                              <Button variant="secondary" size="sm" onClick={() => setReceiptInvoice(invoice)}>
-                                Receipt
-                              </Button>
+                              {activeTab === 'history' && (
+                                <Button variant="secondary" size="sm" onClick={() => setReceiptInvoice(invoice)}>
+                                  Receipt
+                                </Button>
+                              )}
                             </div>
                           )}
                         </td>

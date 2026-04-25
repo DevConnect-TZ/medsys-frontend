@@ -4,13 +4,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { apiClient, getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
+import { usePermission } from '@/hooks/usePermission';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Alert } from '@/components/Alert';
 import { InvoiceReceiptModal } from '@/components/InvoiceReceiptModal';
-import { ArrowLeft, FileText, CheckCircle, Clock, CreditCard, ReceiptText, X } from 'lucide-react';
+import { ArrowLeft, FileText, CheckCircle, Clock, CreditCard, ReceiptText, X, Pencil, Plus, Trash2, Save } from 'lucide-react';
 import Link from 'next/link';
 
 interface InvoiceItem {
@@ -113,6 +114,7 @@ export default function InvoiceDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { user } = useAuthStore();
+  const { can } = usePermission();
   const id = params?.id as string;
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
@@ -126,6 +128,9 @@ export default function InvoiceDetailPage() {
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [processing, setProcessing] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editableItems, setEditableItems] = useState<InvoiceItem[]>([]);
+  const [savingInvoice, setSavingInvoice] = useState(false);
 
   const fetchInvoice = useCallback(async () => {
     if (!id) {
@@ -152,6 +157,7 @@ export default function InvoiceDetailPage() {
         throw new Error('Invoice not found');
       }
       setInvoice(normalizedInvoice);
+      setEditableItems(normalizedInvoice.items || []);
       setAmountPaid(String(normalizedInvoice.total));
       setError('');
     } catch (err) {
@@ -198,6 +204,73 @@ export default function InvoiceDetailPage() {
       setError(getErrorMessage(err, 'Failed to process payment'));
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const canEditInvoice = can('edit_invoices') || user?.role === 'pharmacist';
+
+  const addInvoiceItem = () => {
+    setEditableItems((current) => [
+      ...current,
+      { description: '', quantity: 1, unit_price: 0, total: 0 },
+    ]);
+  };
+
+  const removeInvoiceItem = (index: number) => {
+    setEditableItems((current) => current.filter((_, idx) => idx !== index));
+  };
+
+  const updateInvoiceItem = (index: number, field: keyof InvoiceItem, value: string) => {
+    setEditableItems((current) =>
+      current.map((item, idx) => {
+        if (idx !== index) {
+          return item;
+        }
+
+        const nextItem = {
+          ...item,
+          [field]: field === 'description' ? value : Number(value || 0),
+        };
+
+        return {
+          ...nextItem,
+          total: Number(nextItem.quantity || 0) * Number(nextItem.unit_price || 0),
+        };
+      })
+    );
+  };
+
+  const handleStartEditing = () => {
+    setEditableItems(invoice?.items || []);
+    setIsEditing(true);
+  };
+
+  const handleCancelEditing = () => {
+    setEditableItems(invoice?.items || []);
+    setIsEditing(false);
+  };
+
+  const editableSubtotal = editableItems.reduce((sum, item) => sum + Number(item.total || 0), 0);
+
+  const handleSaveInvoice = async () => {
+    if (!invoice) return;
+
+    const cleanItems = editableItems.filter((item) => item.description.trim() !== '');
+    setSavingInvoice(true);
+    try {
+      await apiClient.updateInvoice(invoice.id, {
+        items: JSON.stringify(cleanItems),
+        subtotal: editableSubtotal,
+        tax: invoice.tax || 0,
+        discount: invoice.discount || 0,
+        total: editableSubtotal + Number(invoice.tax || 0) - Number(invoice.discount || 0),
+      });
+      setIsEditing(false);
+      fetchInvoice();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update invoice'));
+    } finally {
+      setSavingInvoice(false);
     }
   };
 
@@ -288,6 +361,12 @@ export default function InvoiceDetailPage() {
           </div>
           <div className="flex gap-2">
             {getStatusBadge(invoice.status)}
+            {invoice.status === 'pending' && canEditInvoice && !isEditing && (
+              <Button variant="outline" onClick={handleStartEditing}>
+                <Pencil size={18} className="mr-2" />
+                Edit Invoice
+              </Button>
+            )}
             {invoice.status === 'pending' && user?.role === 'cashier' && (
               <Button variant="primary" onClick={() => setShowModal(true)}>
                 <CreditCard size={18} className="mr-2" />
@@ -354,7 +433,24 @@ export default function InvoiceDetailPage() {
         {/* Line Items */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Line Items</CardTitle>
+            <div className="flex items-center justify-between gap-4">
+              <CardTitle>Line Items</CardTitle>
+              {isEditing && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={addInvoiceItem}>
+                    <Plus size={14} className="mr-1" />
+                    Add Item
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={handleCancelEditing}>
+                    Cancel
+                  </Button>
+                  <Button variant="primary" size="sm" isLoading={savingInvoice} onClick={handleSaveInvoice}>
+                    <Save size={14} className="mr-1" />
+                    Save
+                  </Button>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -368,12 +464,50 @@ export default function InvoiceDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(invoice.items || []).map((item, idx) => (
+                  {(isEditing ? editableItems : invoice.items || []).map((item, idx) => (
                     <tr key={idx} className="border-b border-gray-100">
-                      <td className="py-3 px-4 text-gray-900">{item.description}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{item.quantity}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{formatCurrency(item.unit_price)}</td>
-                      <td className="py-3 px-4 text-right font-medium text-gray-900">{formatCurrency(item.total)}</td>
+                      <td className="py-3 px-4 text-gray-900">
+                        {isEditing ? (
+                          <Input value={item.description} onChange={(e) => updateInvoiceItem(idx, 'description', e.target.value)} />
+                        ) : (
+                          item.description
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right text-gray-700">
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            min="0"
+                            value={String(item.quantity)}
+                            onChange={(e) => updateInvoiceItem(idx, 'quantity', e.target.value)}
+                          />
+                        ) : (
+                          item.quantity
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right text-gray-700">
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={String(item.unit_price)}
+                            onChange={(e) => updateInvoiceItem(idx, 'unit_price', e.target.value)}
+                          />
+                        ) : (
+                          formatCurrency(item.unit_price)
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right font-medium text-gray-900">
+                        <div className="flex items-center justify-end gap-2">
+                          <span>{formatCurrency(item.total)}</span>
+                          {isEditing && (
+                            <Button variant="danger" size="sm" onClick={() => removeInvoiceItem(idx)}>
+                              <Trash2 size={14} />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -383,7 +517,7 @@ export default function InvoiceDetailPage() {
             <div className="border-t mt-4 pt-4 space-y-2">
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal</span>
-                <span>{formatCurrency(invoice.subtotal)}</span>
+                <span>{formatCurrency(isEditing ? editableSubtotal : invoice.subtotal)}</span>
               </div>
               {invoice.tax > 0 && (
                 <div className="flex justify-between text-gray-600">
@@ -399,7 +533,13 @@ export default function InvoiceDetailPage() {
               )}
               <div className="flex justify-between items-center border-t pt-2">
                 <span className="text-lg font-semibold text-gray-900">Total</span>
-                <span className="text-2xl font-bold text-gray-900">{formatCurrency(invoice.total)}</span>
+                <span className="text-2xl font-bold text-gray-900">
+                  {formatCurrency(
+                    isEditing
+                      ? editableSubtotal + Number(invoice.tax || 0) - Number(invoice.discount || 0)
+                      : invoice.total
+                  )}
+                </span>
               </div>
             </div>
           </CardContent>

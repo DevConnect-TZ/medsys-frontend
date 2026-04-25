@@ -70,7 +70,9 @@ export default function InvoicesPage() {
   const fetchInvoices = async (page = 1) => {
     try {
       setLoading(true);
-      const response = await apiClient.getInvoices<Invoice>(page);
+      const response = await apiClient.getInvoices<Invoice>(page, {
+        status: 'pending',
+      });
       const normalizedInvoices = (response.data || [])
         .map((invoice) => normalizeInvoice(invoice))
         .filter((invoice): invoice is Invoice => invoice !== null);
@@ -219,7 +221,7 @@ export default function InvoicesPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText size={20} />
-              All Invoices
+              Pending Invoices
             </CardTitle>
           </CardHeader>
           <CardContent>

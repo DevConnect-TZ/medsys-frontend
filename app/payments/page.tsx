@@ -47,7 +47,8 @@ export default function PaymentsPage() {
   const fetchInvoices = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await apiClient.getInvoices<Invoice>(1, { status: activeTab, per_page: 100 });
+      const status = activeTab === 'pending' ? 'pending' : 'paid';
+      const response = await apiClient.getInvoices<Invoice>(1, { status, per_page: 100 });
       setInvoices(response.data || []);
       setError('');
     } catch (err) {

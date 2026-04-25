@@ -26,6 +26,35 @@ interface InventoryItem {
   is_expired?: boolean;
 }
 
+function normalizeInventoryItem(raw: unknown): InventoryItem | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  const id = Number(candidate.id);
+
+  if (!Number.isFinite(id) || id <= 0) {
+    return null;
+  }
+
+  return {
+    id,
+    medication_name: String(candidate.medication_name || 'Unnamed medication'),
+    generic_name: candidate.generic_name ? String(candidate.generic_name) : undefined,
+    dosage: candidate.dosage ? String(candidate.dosage) : undefined,
+    form: candidate.form ? String(candidate.form) : undefined,
+    manufacturer: candidate.manufacturer ? String(candidate.manufacturer) : undefined,
+    quantity: Number(candidate.quantity || 0) || 0,
+    reorder_level: Number(candidate.reorder_level || 0) || 0,
+    unit_price: Number(candidate.unit_price || 0) || 0,
+    expiry_date: candidate.expiry_date ? String(candidate.expiry_date) : undefined,
+    batch_number: candidate.batch_number ? String(candidate.batch_number) : undefined,
+    is_low_stock: Boolean(candidate.is_low_stock),
+    is_expired: Boolean(candidate.is_expired),
+  };
+}
+
 export default function PharmacyInventoryPage() {
   const router = useRouter();
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -60,7 +89,10 @@ export default function PharmacyInventoryPage() {
     try {
       setLoading(true);
       const res = await apiClient.getPharmacyInventory<InventoryItem>({ per_page: 100, hide_expired: false });
-      setItems(res.data || []);
+      const normalizedItems = (res.data || [])
+        .map((item) => normalizeInventoryItem(item))
+        .filter((item): item is InventoryItem => item !== null);
+      setItems(normalizedItems);
       setError('');
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Failed to load inventory'));
@@ -148,7 +180,14 @@ export default function PharmacyInventoryPage() {
           </Button>
         </div>
 
-        {error && <div className="mb-6"><Alert type="error" message={error} onClose={() => setError('')} /></div>}
+        {error && (
+          <div className="mb-6 space-y-3">
+            <Alert type="error" message={error} onClose={() => setError('')} />
+            <Button variant="outline" size="sm" onClick={fetchInventory}>
+              Retry Loading Inventory
+            </Button>
+          </div>
+        )}
 
         {showForm && (
           <Card className="mb-6">

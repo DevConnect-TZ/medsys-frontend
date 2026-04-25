@@ -36,6 +36,46 @@ interface Visit {
   notes?: string;
 }
 
+function normalizeVisit(raw: unknown): Visit | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  const id = Number(candidate.id);
+
+  if (!Number.isFinite(id) || id <= 0) {
+    return null;
+  }
+
+  return {
+    id,
+    visit_number: String(candidate.visit_number || `VST-${id}`),
+    patient_id: Number(candidate.patient_id || 0) || 0,
+    patient_name: String(candidate.patient_name || 'Unknown patient'),
+    doctor_id: Number(candidate.doctor_id || 0) || 0,
+    doctor_name: String(candidate.doctor_name || 'Unassigned'),
+    visit_date: String(candidate.visit_date || ''),
+    visit_time: String(candidate.visit_time || '—'),
+    chief_complaint: String(candidate.chief_complaint || '—'),
+    diagnosis: candidate.diagnosis ? String(candidate.diagnosis) : undefined,
+    treatment_plan: candidate.treatment_plan ? String(candidate.treatment_plan) : undefined,
+    vital_signs:
+      candidate.vital_signs && typeof candidate.vital_signs === 'object'
+        ? (candidate.vital_signs as Visit['vital_signs'])
+        : undefined,
+    consultation_fee: Number(candidate.consultation_fee || 0) || 0,
+    status:
+      candidate.status === 'in_progress' ||
+      candidate.status === 'completed' ||
+      candidate.status === 'cancelled'
+        ? candidate.status
+        : 'scheduled',
+    workflow_status: String(candidate.workflow_status || candidate.status || 'scheduled'),
+    notes: candidate.notes ? String(candidate.notes) : undefined,
+  };
+}
+
 export default function VisitsPage() {
   const router = useRouter();
   const { can, user } = usePermission();
@@ -60,7 +100,10 @@ export default function VisitsPage() {
     try {
       setLoading(true);
       const response = await apiClient.getVisits<Visit>(page);
-      setVisits(response.data || []);
+      const normalizedVisits = (response.data || [])
+        .map((visit) => normalizeVisit(visit))
+        .filter((visit): visit is Visit => visit !== null);
+      setVisits(normalizedVisits);
       setLastPage(response.meta?.last_page || 1);
       setCurrentPage(response.meta?.current_page || 1);
       setError('');
@@ -95,8 +138,13 @@ export default function VisitsPage() {
     );
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) {
+      return '—';
+    }
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -151,11 +199,16 @@ export default function VisitsPage() {
 
         {/* Error Alert */}
         {error && (
-          <Alert
-            type="error"
-            message={error}
-            onClose={() => setError('')}
-          />
+          <div className="space-y-3 mb-6">
+            <Alert
+              type="error"
+              message={error}
+              onClose={() => setError('')}
+            />
+            <Button variant="outline" size="sm" onClick={() => fetchVisits(currentPage)}>
+              Retry Loading Visits
+            </Button>
+          </div>
         )}
 
         {/* Summary Cards */}
@@ -379,6 +432,7 @@ export default function VisitsPage() {
               <div className="space-y-4">
                 {visits
                   .filter(v =>
+                    formatDate(v.visit_date) !== '—' &&
                     new Date(v.visit_date).toDateString() === new Date().toDateString() &&
                     (v.workflow_status === 'scheduled' || v.workflow_status === 'awaiting_payment' || v.workflow_status === 'paid' || v.workflow_status === 'lab_pending' || v.workflow_status === 'lab_completed' || v.workflow_status === 'pharmacy_awaiting_payment' || v.workflow_status === 'pharmacy_pending')
                   )
@@ -402,6 +456,7 @@ export default function VisitsPage() {
                     </div>
                   ))}
                 {visits.filter(v =>
+                  formatDate(v.visit_date) !== '—' &&
                   new Date(v.visit_date).toDateString() === new Date().toDateString() &&
                   (v.workflow_status === 'scheduled' || v.workflow_status === 'awaiting_payment' || v.workflow_status === 'paid' || v.workflow_status === 'lab_pending' || v.workflow_status === 'lab_completed' || v.workflow_status === 'pharmacy_pending')
                 ).length === 0 && (

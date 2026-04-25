@@ -49,36 +49,63 @@ function normalizeInvoiceItem(item: unknown): InvoiceItem | null {
 
   return {
     description: String(candidate.description || ''),
-    quantity: Number(candidate.quantity || 0),
-    unit_price: Number(candidate.unit_price || 0),
-    total: Number(candidate.total || 0),
+    quantity: Number(candidate.quantity || 0) || 0,
+    unit_price: Number(candidate.unit_price || 0) || 0,
+    total: Number(candidate.total || 0) || 0,
   };
 }
 
-function normalizeInvoice(raw: Invoice): Invoice {
-  const rawItems = Array.isArray(raw.items)
-    ? raw.items
-    : typeof raw.items === 'string'
-      ? (() => {
-          try {
-            const parsed = JSON.parse(raw.items);
-            return Array.isArray(parsed) ? parsed : [];
-          } catch {
-            return [];
-          }
-        })()
-      : [];
+function normalizeInvoice(raw: unknown): Invoice | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  if (candidate.data && typeof candidate.data === 'object') {
+    return normalizeInvoice(candidate.data);
+  }
+  
+  // Handle items - could be array, string (JSON), or missing
+  let rawItems: unknown[] = [];
+  if (Array.isArray(candidate.items)) {
+    rawItems = candidate.items;
+  } else if (typeof candidate.items === 'string' && candidate.items) {
+    try {
+      const parsed = JSON.parse(candidate.items);
+      rawItems = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      rawItems = [];
+    }
+  }
+
+  // Safely map and filter items
+  let items: InvoiceItem[] = [];
+  if (rawItems && Array.isArray(rawItems)) {
+    items = rawItems
+      .map(normalizeInvoiceItem)
+      .filter((item): item is InvoiceItem => item !== null);
+  }
 
   return {
-    ...raw,
-    items: rawItems
-      .map(normalizeInvoiceItem)
-      .filter((item): item is InvoiceItem => item !== null),
-    subtotal: Number(raw.subtotal || 0),
-    tax: Number(raw.tax || 0),
-    discount: Number(raw.discount || 0),
-    total: Number(raw.total || 0),
-    amount_paid: raw.amount_paid !== undefined ? Number(raw.amount_paid) : undefined,
+    id: Number(candidate.id) || 0,
+    invoice_number: String(candidate.invoice_number || ''),
+    patient_id: Number(candidate.patient_id) || 0,
+    patient_name: String(candidate.patient_name || ''),
+    visit_id: candidate.visit_id ? Number(candidate.visit_id) : undefined,
+    appointment_id: candidate.appointment_id ? Number(candidate.appointment_id) : undefined,
+    invoice_date: String(candidate.invoice_date || ''),
+    items,
+    subtotal: Number(candidate.subtotal || 0) || 0,
+    tax: Number(candidate.tax || 0) || 0,
+    discount: Number(candidate.discount || 0) || 0,
+    total: Number(candidate.total || 0) || 0,
+    status: (candidate.status === 'paid' || candidate.status === 'cancelled') 
+      ? candidate.status 
+      : 'pending',
+    payment_method: candidate.payment_method ? String(candidate.payment_method) : undefined,
+    amount_paid: candidate.amount_paid !== undefined ? Number(candidate.amount_paid) || undefined : undefined,
+    payment_date: candidate.payment_date ? String(candidate.payment_date) : undefined,
+    paid_at: candidate.paid_at ? String(candidate.paid_at) : undefined,
   };
 }
 
@@ -101,14 +128,29 @@ export default function InvoiceDetailPage() {
   const [showReceipt, setShowReceipt] = useState(false);
 
   const fetchInvoice = useCallback(async () => {
+    if (!id) {
+      setError('Invalid invoice ID');
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
+      console.log('[InvoiceDetail] Fetching invoice:', id);
       const response = await apiClient.getInvoice<Invoice>(Number(id));
-      const data = response.invoice || response.data;
-      if (!data) {
+      console.log('[InvoiceDetail] API Response:', response);
+      
+      // Handle wrapped response shapes from different backend/resource combinations.
+      const data =
+        (response as { invoice?: unknown })?.invoice ||
+        (response as { data?: unknown })?.data ||
+        response;
+      
+      console.log('[InvoiceDetail] Extracted data:', data);
+      
+      const normalizedInvoice = normalizeInvoice(data);
+      if (!normalizedInvoice || !normalizedInvoice.id) {
         throw new Error('Invoice not found');
       }
-      const normalizedInvoice = normalizeInvoice(data);
       setInvoice(normalizedInvoice);
       setAmountPaid(String(normalizedInvoice.total));
       setError('');
@@ -168,7 +210,11 @@ export default function InvoiceDetailPage() {
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '—';
-    return new Date(dateString).toLocaleDateString('en-US', {
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) {
+      return '—';
+    }
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -176,6 +222,7 @@ export default function InvoiceDetailPage() {
   };
 
   const getStatusBadge = (status: string) => {
+    const normalizedStatus = status === 'paid' || status === 'cancelled' ? status : 'pending';
     const styles: Record<string, string> = {
       paid: 'bg-green-100 text-green-800',
       pending: 'bg-yellow-100 text-yellow-800',
@@ -187,9 +234,9 @@ export default function InvoiceDetailPage() {
       cancelled: <FileText size={14} />,
     };
     return (
-      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${styles[status]}`}>
-        {icons[status]}
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${styles[normalizedStatus]}`}>
+        {icons[normalizedStatus]}
+        {normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1)}
       </span>
     );
   };

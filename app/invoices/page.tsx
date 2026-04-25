@@ -22,6 +22,33 @@ interface Invoice {
   payment_date?: string;
 }
 
+function normalizeInvoice(raw: unknown): Invoice | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  const normalizedId = Number(candidate.id);
+
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) {
+    return null;
+  }
+
+  return {
+    id: normalizedId,
+    invoice_number: String(candidate.invoice_number || ''),
+    patient_id: Number(candidate.patient_id || 0) || 0,
+    patient_name: String(candidate.patient_name || ''),
+    total: Number(candidate.total || 0) || 0,
+    status:
+      candidate.status === 'paid' || candidate.status === 'cancelled'
+        ? candidate.status
+        : 'pending',
+    invoice_date: String(candidate.invoice_date || ''),
+    payment_date: candidate.payment_date ? String(candidate.payment_date) : undefined,
+  };
+}
+
 export default function InvoicesPage() {
   const router = useRouter();
   const { can } = usePermission();
@@ -44,7 +71,10 @@ export default function InvoicesPage() {
     try {
       setLoading(true);
       const response = await apiClient.getInvoices<Invoice>(page);
-      setInvoices(response.data || []);
+      const normalizedInvoices = (response.data || [])
+        .map((invoice) => normalizeInvoice(invoice))
+        .filter((invoice): invoice is Invoice => invoice !== null);
+      setInvoices(normalizedInvoices);
       setLastPage(response.meta?.last_page || 1);
       setCurrentPage(response.meta?.current_page || 1);
       setError('');
@@ -86,7 +116,11 @@ export default function InvoicesPage() {
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '—';
-    return new Date(dateString).toLocaleDateString('en-US', {
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) {
+      return '—';
+    }
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -241,10 +275,11 @@ export default function InvoicesPage() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex gap-2">
-                            <Link href={`/invoices/${invoice.id}`}>
-                              <Button variant="outline" size="sm">
-                                View
-                              </Button>
+                            <Link
+                              href={`/invoices/${invoice.id}`}
+                              className="inline-flex items-center rounded-lg border-2 border-blue-600 px-3 py-1 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                            >
+                              View
                             </Link>
                             {invoice.status === 'pending' && can('process_payments') && (
                               <Link href="/payments">

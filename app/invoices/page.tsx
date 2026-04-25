@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermission } from '@/hooks/usePermission';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -18,9 +18,22 @@ interface Invoice {
   patient_name: string;
   total: number;
   amount_paid?: number;
+  items?: { description: string }[];
   status: 'pending' | 'paid' | 'cancelled';
   invoice_date: string;
   payment_date?: string;
+}
+
+function normalizeInvoiceItem(raw: unknown): { description: string } | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const candidate = raw as Record<string, unknown>;
+
+  return {
+    description: String(candidate.description || ''),
+  };
 }
 
 function normalizeInvoice(raw: unknown): Invoice | null {
@@ -35,6 +48,18 @@ function normalizeInvoice(raw: unknown): Invoice | null {
     return null;
   }
 
+  let rawItems: unknown[] = [];
+  if (Array.isArray(candidate.items)) {
+    rawItems = candidate.items;
+  } else if (typeof candidate.items === 'string' && candidate.items) {
+    try {
+      const parsed = JSON.parse(candidate.items);
+      rawItems = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      rawItems = [];
+    }
+  }
+
   return {
     id: normalizedId,
     invoice_number: String(candidate.invoice_number || ''),
@@ -42,6 +67,9 @@ function normalizeInvoice(raw: unknown): Invoice | null {
     patient_name: String(candidate.patient_name || ''),
     total: Number(candidate.total || 0) || 0,
     amount_paid: Number(candidate.amount_paid || 0) || 0,
+    items: rawItems
+      .map((item) => normalizeInvoiceItem(item))
+      .filter((item): item is { description: string } => item !== null),
     status:
       candidate.status === 'paid' || candidate.status === 'cancelled'
         ? candidate.status
@@ -51,9 +79,13 @@ function normalizeInvoice(raw: unknown): Invoice | null {
   };
 }
 
+function isPharmacyInvoice(invoice: Invoice): boolean {
+  return (invoice.items || []).some((item) => item.description.startsWith('Medicine:'));
+}
+
 export default function InvoicesPage() {
   const router = useRouter();
-  const { can } = usePermission();
+  const { can, user } = usePermission();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -68,7 +100,7 @@ export default function InvoicesPage() {
       return;
     }
     fetchInvoices(currentPage);
-  }, [router, currentPage]);
+  }, [router, currentPage, fetchInvoices]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -76,38 +108,65 @@ export default function InvoicesPage() {
       return;
     }
     fetchPaidRevenue();
-  }, []);
+  }, [fetchPaidRevenue]);
 
-  const fetchInvoices = async (page = 1) => {
+  const fetchInvoices = useCallback(async (page = 1) => {
     try {
       setLoading(true);
-      const response = await apiClient.getInvoices<Invoice>(page, {
-        status: 'pending',
-      });
-      const normalizedInvoices = (response.data || [])
-        .map((invoice) => normalizeInvoice(invoice))
-        .filter((invoice): invoice is Invoice => invoice !== null);
-      setInvoices(normalizedInvoices);
-      setLastPage(response.meta?.last_page || 1);
-      setCurrentPage(response.meta?.current_page || 1);
+      try {
+        const response = await apiClient.getInvoices<Invoice>(page, {
+          status: 'pending',
+        });
+        const normalizedInvoices = (response.data || [])
+          .map((invoice) => normalizeInvoice(invoice))
+          .filter((invoice): invoice is Invoice => invoice !== null)
+          .filter((invoice) => (user?.role === 'pharmacist' ? isPharmacyInvoice(invoice) : true));
+        setInvoices(normalizedInvoices);
+        setLastPage(response.meta?.last_page || 1);
+        setCurrentPage(response.meta?.current_page || 1);
+      } catch {
+        const fallbackResponse = await apiClient.getInvoices<Invoice>(page);
+        const normalizedInvoices = (fallbackResponse.data || [])
+          .map((invoice) => normalizeInvoice(invoice))
+          .filter((invoice): invoice is Invoice => invoice !== null)
+          .filter((invoice) => invoice.status === 'pending')
+          .filter((invoice) => (user?.role === 'pharmacist' ? isPharmacyInvoice(invoice) : true));
+        setInvoices(normalizedInvoices);
+        setLastPage(fallbackResponse.meta?.last_page || 1);
+        setCurrentPage(fallbackResponse.meta?.current_page || 1);
+      }
       setError('');
-    } catch (err) {
-      setError('Failed to load invoices');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to load invoices'));
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.role]);
 
-  const fetchPaidRevenue = async () => {
+  const fetchPaidRevenue = useCallback(async () => {
     try {
-      const response = await apiClient.getInvoices<Invoice>(1, {
-        status: 'paid',
-        per_page: 1000,
-      });
-      const paidInvoices = (response.data || [])
-        .map((invoice) => normalizeInvoice(invoice))
-        .filter((invoice): invoice is Invoice => invoice !== null);
+      let paidInvoices: Invoice[] = [];
+
+      try {
+        const response = await apiClient.getInvoices<Invoice>(1, {
+          status: 'paid',
+          per_page: 1000,
+        });
+        paidInvoices = (response.data || [])
+          .map((invoice) => normalizeInvoice(invoice))
+          .filter((invoice): invoice is Invoice => invoice !== null)
+          .filter((invoice) => (user?.role === 'pharmacist' ? isPharmacyInvoice(invoice) : true));
+      } catch {
+        const fallbackResponse = await apiClient.getInvoices<Invoice>(1, {
+          per_page: 1000,
+        });
+        paidInvoices = (fallbackResponse.data || [])
+          .map((invoice) => normalizeInvoice(invoice))
+          .filter((invoice): invoice is Invoice => invoice !== null)
+          .filter((invoice) => invoice.status === 'paid')
+          .filter((invoice) => (user?.role === 'pharmacist' ? isPharmacyInvoice(invoice) : true));
+      }
 
       setPaidRevenue(
         paidInvoices.reduce((sum, invoice) => {
@@ -122,7 +181,7 @@ export default function InvoicesPage() {
       console.error('Failed to load paid revenue', err);
       setPaidRevenue(0);
     }
-  };
+  }, [user?.role]);
 
   const getStatusBadge = (status: string) => {
     const styles = {
@@ -186,11 +245,16 @@ export default function InvoicesPage() {
 
         {/* Error Alert */}
         {error && (
-          <Alert
-            type="error"
-            message={error}
-            onClose={() => setError('')}
-          />
+          <div className="space-y-3 mb-6">
+            <Alert
+              type="error"
+              message={error}
+              onClose={() => setError('')}
+            />
+            <Button variant="outline" size="sm" onClick={() => fetchInvoices(currentPage)}>
+              Retry Loading Invoices
+            </Button>
+          </div>
         )}
 
         {/* Summary Cards */}

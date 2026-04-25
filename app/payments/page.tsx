@@ -28,6 +28,69 @@ interface Invoice {
   payment_date?: string;
 }
 
+function normalizeInvoiceItem(raw: unknown): { description: string; quantity: number; unit_price: number; total: number } | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const candidate = raw as Record<string, unknown>;
+
+  return {
+    description: String(candidate.description || ''),
+    quantity: Number(candidate.quantity || 0) || 0,
+    unit_price: Number(candidate.unit_price || 0) || 0,
+    total: Number(candidate.total || 0) || 0,
+  };
+}
+
+function normalizeInvoice(raw: unknown): Invoice | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  const id = Number(candidate.id);
+
+  if (!Number.isFinite(id) || id <= 0) {
+    return null;
+  }
+
+  let rawItems: unknown[] = [];
+  if (Array.isArray(candidate.items)) {
+    rawItems = candidate.items;
+  } else if (typeof candidate.items === 'string' && candidate.items) {
+    try {
+      const parsed = JSON.parse(candidate.items);
+      rawItems = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      rawItems = [];
+    }
+  }
+
+  return {
+    id,
+    invoice_number: String(candidate.invoice_number || ''),
+    patient_id: Number(candidate.patient_id || 0) || 0,
+    patient_name: String(candidate.patient_name || ''),
+    total: Number(candidate.total || 0) || 0,
+    status:
+      candidate.status === 'paid' || candidate.status === 'cancelled'
+        ? candidate.status
+        : 'pending',
+    invoice_date: String(candidate.invoice_date || ''),
+    items: rawItems
+      .map((item) => normalizeInvoiceItem(item))
+      .filter((item): item is { description: string; quantity: number; unit_price: number; total: number } => item !== null),
+    payment_method: candidate.payment_method ? String(candidate.payment_method) : undefined,
+    amount_paid: Number(candidate.amount_paid || 0) || 0,
+    payment_date: candidate.payment_date ? String(candidate.payment_date) : undefined,
+  };
+}
+
+function isPharmacyInvoice(invoice: Invoice): boolean {
+  return (invoice.items || []).some((item) => item.description.startsWith('Medicine:'));
+}
+
 export default function PaymentsPage() {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -52,7 +115,11 @@ export default function PaymentsPage() {
       setLoading(true);
       const status = activeTab === 'pending' ? 'pending' : 'paid';
       const response = await apiClient.getInvoices<Invoice>(1, { status, per_page: 100 });
-      setInvoices(response.data || []);
+      const normalizedInvoices = (response.data || [])
+        .map((invoice) => normalizeInvoice(invoice))
+        .filter((invoice): invoice is Invoice => invoice !== null)
+        .filter((invoice) => (user?.role === 'pharmacist' ? isPharmacyInvoice(invoice) : true));
+      setInvoices(normalizedInvoices);
       setError('');
     } catch (err) {
       setError('Failed to load invoices');
@@ -60,7 +127,7 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, user?.role]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -203,7 +270,14 @@ export default function PaymentsPage() {
                     {activeTab === 'pending' ? 'Total Pending' : 'Total Collected'}
                   </p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">
-                    {formatCurrency(invoices.reduce((sum, inv) => sum + inv.total, 0))}
+                    {formatCurrency(
+                      invoices.reduce((sum, inv) => {
+                        const amount = activeTab === 'history' && typeof inv.amount_paid === 'number' && inv.amount_paid > 0
+                          ? inv.amount_paid
+                          : inv.total;
+                        return sum + amount;
+                      }, 0)
+                    )}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">

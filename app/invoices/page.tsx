@@ -17,6 +17,7 @@ interface Invoice {
   patient_id: number;
   patient_name: string;
   total: number;
+  amount_paid?: number;
   status: 'pending' | 'paid' | 'cancelled';
   invoice_date: string;
   payment_date?: string;
@@ -40,6 +41,7 @@ function normalizeInvoice(raw: unknown): Invoice | null {
     patient_id: Number(candidate.patient_id || 0) || 0,
     patient_name: String(candidate.patient_name || ''),
     total: Number(candidate.total || 0) || 0,
+    amount_paid: Number(candidate.amount_paid || 0) || 0,
     status:
       candidate.status === 'paid' || candidate.status === 'cancelled'
         ? candidate.status
@@ -57,6 +59,7 @@ export default function InvoicesPage() {
   const [error, setError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
+  const [paidRevenue, setPaidRevenue] = useState(0);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -66,6 +69,14 @@ export default function InvoicesPage() {
     }
     fetchInvoices(currentPage);
   }, [router, currentPage]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return;
+    }
+    fetchPaidRevenue();
+  }, []);
 
   const fetchInvoices = async (page = 1) => {
     try {
@@ -85,6 +96,31 @@ export default function InvoicesPage() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPaidRevenue = async () => {
+    try {
+      const response = await apiClient.getInvoices<Invoice>(1, {
+        status: 'paid',
+        per_page: 1000,
+      });
+      const paidInvoices = (response.data || [])
+        .map((invoice) => normalizeInvoice(invoice))
+        .filter((invoice): invoice is Invoice => invoice !== null);
+
+      setPaidRevenue(
+        paidInvoices.reduce((sum, invoice) => {
+          const paidAmount = typeof invoice.amount_paid === 'number' && invoice.amount_paid > 0
+            ? invoice.amount_paid
+            : invoice.total;
+
+          return sum + paidAmount;
+        }, 0)
+      );
+    } catch (err) {
+      console.error('Failed to load paid revenue', err);
+      setPaidRevenue(0);
     }
   };
 
@@ -165,11 +201,7 @@ export default function InvoicesPage() {
                 <div>
                   <p className="text-sm text-gray-600">Total Revenue</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">
-                    {formatCurrency(
-                      invoices
-                        .filter((inv) => inv.status === 'paid')
-                        .reduce((sum, inv) => sum + inv.total, 0)
-                    )}
+                    {formatCurrency(paidRevenue)}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">

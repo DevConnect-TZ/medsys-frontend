@@ -47,6 +47,29 @@ interface VisitSummary {
   lab_orders?: VisitLabOrder[];
 }
 
+function normalizeInventoryItem(raw: unknown): InventoryItem | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  const id = Number(candidate.id);
+
+  if (!Number.isFinite(id) || id <= 0) {
+    return null;
+  }
+
+  return {
+    id,
+    medication_name: String(candidate.medication_name || 'Unnamed medication'),
+    generic_name: candidate.generic_name ? String(candidate.generic_name) : undefined,
+    dosage: candidate.dosage ? String(candidate.dosage) : undefined,
+    form: candidate.form ? String(candidate.form) : undefined,
+    quantity: Number(candidate.quantity || 0) || 0,
+    unit_price: Number(candidate.unit_price || 0) || 0,
+  };
+}
+
 export default function VisitPrescribePage() {
   const router = useRouter();
   const params = useParams();
@@ -64,23 +87,41 @@ export default function VisitPrescribePage() {
 
   useEffect(() => {
     const fetchData = async () => {
+      setError('');
       try {
-        const [res, invRes] = await Promise.all([
+        const [visitResult, inventoryResult] = await Promise.allSettled([
           apiClient.getVisit<VisitSummary>(Number(id)),
           apiClient.getPharmacyInventory<InventoryItem>({ per_page: 200 }),
         ]);
+
+        if (visitResult.status !== 'fulfilled') {
+          throw visitResult.reason;
+        }
+
+        const res = visitResult.value;
         const visit = res.visit || res.data;
         if (!visit) {
           throw new Error('Visit data not found');
         }
+
         setPatientName(visit.patient_name || `Patient #${visit.patient_id}`);
         const results = (visit.lab_orders || [])
           .filter((labOrder): labOrder is VisitLabOrder & { lab_result: LabResult } => Boolean(labOrder.lab_result))
           .map((labOrder) => labOrder.lab_result);
         setLabResults(results);
-        setInventory(invRes.data || []);
-      } catch {
-        setError('Failed to load visit or inventory');
+
+        if (inventoryResult.status === 'fulfilled') {
+          const normalizedInventory = (inventoryResult.value.data || [])
+            .map((item) => normalizeInventoryItem(item))
+            .filter((item): item is InventoryItem => item !== null);
+          setInventory(normalizedInventory);
+        } else {
+          setInventory([]);
+          setError('Visit loaded, but inventory is temporarily unavailable. You can still enter medicines manually.');
+        }
+      } catch (err: unknown) {
+        setInventory([]);
+        setError(getErrorMessage(err, 'Failed to load visit details'));
       }
     };
     fetchData();
@@ -160,7 +201,14 @@ export default function VisitPrescribePage() {
           </div>
         </div>
 
-        {error && <div className="mb-6"><Alert type="error" message={error} /></div>}
+        {error && (
+          <div className="mb-6 space-y-3">
+            <Alert type="error" message={error} onClose={() => setError('')} />
+            <Button variant="outline" size="sm" type="button" onClick={() => window.location.reload()}>
+              Retry Loading Data
+            </Button>
+          </div>
+        )}
 
         {labResults.length > 0 && (
           <Card className="mb-6">
